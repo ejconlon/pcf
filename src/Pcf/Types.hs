@@ -1,7 +1,10 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Pcf.Types where
 
 import Bound (Scope, (>>>=))
 import Control.Monad (ap)
+import Data.Deriving (deriveEq, deriveEq1, deriveShow, deriveShow1)
 import Data.Functor.Classes (Eq1(..), Show1(..))
 import Control.Monad.Gen (Gen)
 import Control.Monad.Trans.Maybe (MaybeT)
@@ -19,6 +22,11 @@ data Exp a =
     | Suc (Exp a)
     | Zero
     deriving (Functor, Foldable, Traversable)
+
+$(deriveEq ''Exp)
+$(deriveShow ''Exp)
+$(deriveEq1 ''Exp)
+$(deriveShow1 ''Exp)
 
 instance Applicative Exp where
     pure = Var

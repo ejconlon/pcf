@@ -15,6 +15,7 @@ dependencies:
 - base >= 4.11 && < 5
 - bound
 - containers
+- deriving-compat
 - monad-gen
 - mtl
 - transformers
