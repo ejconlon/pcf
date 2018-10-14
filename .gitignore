@@ -1,0 +1,5 @@
+.stack-work/
+pcf.cabal
+*~
+*.swo
+*.swp

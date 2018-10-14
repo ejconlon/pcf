@@ -1,0 +1,64 @@
+name:                pcf
+version:             0.1.0
+github:              "ejconlon/pcf"
+license:             BSD3
+author:              "Eric Conlon"
+maintainer:          "ejconlon@gmail.com"
+copyright:           "(c) 2018 Eric Conlon"
+
+extra-source-files:
+- README.md
+
+description: Please see the README on GitHub at <https://github.com/ejconlon/pcf#readme>
+
+dependencies:
+- base >= 4.11 && < 5
+# - bound
+# - bytestring
+# - comonad
+# - data-fix
+# - containers
+# - free
+# - hashable
+# - lens
+# - mtl
+# - text
+# - transformers
+# - unordered-containers
+# - vector
+
+default-extensions:
+  - DeriveFunctor
+  - DeriveFoldable
+  - DeriveGeneric
+  - DeriveTraversable
+  - GeneralizedNewtypeDeriving
+  - OverloadedStrings
+
+library:
+  source-dirs: src
+
+executables:
+  pcf-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - pcf
+
+tests:
+  pcf-test:
+    main:                Tasty.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - pcf
+    - tasty
+    - tasty-discover
+    - tasty-hunit
