@@ -25,3 +25,9 @@ typeCheck env (Lam aTy bind) = do
         env' = Map.insert v aTy env
     bTy <- typeCheck env' body
     pure (Arr aTy bTy)
+typeCheck env (Fix ty bind) = do
+    v <- gen
+    let body = instantiate1 (Var v) bind
+        env' = Map.insert v ty env
+    assertTy env' body ty
+    pure ty

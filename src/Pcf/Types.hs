@@ -6,8 +6,8 @@ import Bound (Scope, (>>>=))
 import Control.Monad (ap)
 import Data.Deriving (deriveEq, deriveEq1, deriveShow, deriveShow1)
 import Data.Functor.Classes (Eq1(..), Show1(..))
-import Control.Monad.Gen (Gen)
-import Control.Monad.Trans.Maybe (MaybeT)
+import Control.Monad.Gen (Gen, runGen)
+import Control.Monad.Trans.Maybe (MaybeT(..))
 
 data Ty =
       Arr Ty Ty
@@ -43,3 +43,6 @@ instance Monad Exp where
     Zero >>= _ = Zero
 
 type TyM a = MaybeT (Gen a)
+
+runTyM :: Enum a => TyM a b -> Maybe b
+runTyM = runGen . runMaybeT
