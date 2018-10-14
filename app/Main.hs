@@ -1,6 +1,6 @@
 module Main where
 
-import qualified Pcf
+import qualified Pcf.Main
 
 main :: IO ()
-main = Pcf.main
+main = Pcf.Main.main
