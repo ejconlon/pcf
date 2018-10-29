@@ -57,3 +57,6 @@ bigStep env v@(Lam _ _) = pure v
 bigStep env v@(Fix _ _) = pure v
 bigStep env v@Zero = pure v
 bigStep env (Suc e) = Suc <$> bigStep env e
+
+closConv :: Exp a -> ExpC a
+closConv Zero = ZeroC

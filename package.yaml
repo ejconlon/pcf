@@ -19,6 +19,7 @@ dependencies:
 - monad-gen
 - mtl
 - transformers
+- vector
 # - bytestring
 # - comonad
 # - data-fix
@@ -27,7 +28,6 @@ dependencies:
 # - lens
 # - text
 # - unordered-containers
-# - vector
 
 default-extensions:
   - DeriveFunctor
