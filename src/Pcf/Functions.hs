@@ -1,21 +1,28 @@
 module Pcf.Functions where
 
-import Bound (Scope, instantiate1)
+import Bound (Scope, abstract1, instantiate1)
 import Control.Monad (guard, mzero)
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Control.Monad.Gen (gen)
+import Control.Monad.Gen (Gen, gen)
 import Pcf.Types
 
 assertTy :: Ord a => Ty -> Map a Ty -> Exp a -> TyM a ()
 assertTy t env e = (== t) <$> typeCheck env e >>= guard
 
-instantiateAndThen :: Ord a => w -> Map a w -> Scope () Exp a -> (Map a w -> Exp a -> TyM a b) -> TyM a b
+instantiateAndThen :: (Monad f, Ord a) => w -> Map a w -> Scope () f a -> (Map a w -> f a -> TyM a b) -> TyM a b
 instantiateAndThen w env bind f = do
     v <- gen
     let env' = Map.insert v w env
-        body = instantiate1 (Var v) bind
+        body = instantiate1 (pure v) bind
     f env' body
+
+instantiateApply :: (Monad f, Monad g, Eq a) => Scope () f a -> (f a -> Gen a (g a)) -> Gen a (Scope () g a)
+instantiateApply bind f = do
+    v <- gen
+    let fa = instantiate1 (pure v) bind
+    ga <- f fa
+    pure (abstract1 v ga)
 
 typeCheck :: Ord a => Map a Ty -> Exp a -> TyM a Ty
 typeCheck env (Var a) = maybe mzero pure (Map.lookup a env)
@@ -58,5 +65,11 @@ bigStep env v@(Fix _ _) = pure v
 bigStep env v@Zero = pure v
 bigStep env (Suc e) = Suc <$> bigStep env e
 
-closConv :: Exp a -> ExpC a
-closConv Zero = ZeroC
+closConv :: Eq a => Exp a -> Gen a (ExpC a)
+closConv (Var a) = pure (VarC a)
+closConv (App l r) = AppC <$> closConv l <*> closConv r
+closConv (Ifz g t e) = do
+    let e' = instantiateApply e closConv
+    IfzC <$> closConv g <*> closConv t <*> e'
+closConv (Suc e) = SucC <$> closConv e
+closConv Zero = pure ZeroC
