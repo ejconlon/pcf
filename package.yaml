@@ -18,6 +18,7 @@ dependencies:
 - deriving-compat
 - monad-gen
 - mtl
+- text
 - transformers
 - vector
 # - bytestring
