@@ -12,6 +12,8 @@ import Data.Vector (Vector)
 import Control.Monad.Gen (Gen, runGen)
 import Control.Monad.Trans.Maybe (MaybeT(..))
 
+data SExp a = SAtom a | SList [SExp a] deriving (Show, Eq, Functor, Foldable, Traversable)
+
 data Ty =
       Arr Ty Ty
     | Nat deriving (Show, Eq)
@@ -29,9 +31,9 @@ data Exp a =
     deriving (Functor, Foldable, Traversable)
 
 $(deriveEq ''Exp)
--- $(deriveShow ''Exp)
+$(deriveShow ''Exp)
 $(deriveEq1 ''Exp)
--- $(deriveShow1 ''Exp)
+$(deriveShow1 ''Exp)
 
 instance Applicative Exp where
     pure = Var

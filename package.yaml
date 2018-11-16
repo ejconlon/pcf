@@ -16,6 +16,8 @@ dependencies:
 - bound
 - containers
 - deriving-compat
+- haskeline
+- megaparsec
 - monad-gen
 - mtl
 - text
