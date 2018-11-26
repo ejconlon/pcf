@@ -3,6 +3,7 @@ module Pcf.Functions where
 import Bound (Scope, abstract1, instantiate1)
 import Bound.Name (Name(..))
 import Control.Monad (guard, mzero)
+import Data.Functor (($>))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
@@ -22,7 +23,7 @@ instantiateAndThen' v bind f =
 instantiateApply :: (Functor m, Monad f, Monad g, Eq a) => a -> Scope () f a -> (f a -> m (g a)) -> m (Scope () g a)
 instantiateApply v bind f =
     let e = instantiate1 (pure v) bind
-    in (\e' -> abstract1 v e') <$> f e
+    in abstract1 v <$> f e
 
 assertTy :: Ty -> Map Text Ty -> Exp Text -> Maybe ()
 assertTy t env e = (== t) <$> typeCheck env e >>= guard
@@ -32,7 +33,7 @@ typeCheck env (Var a) = maybe mzero pure (Map.lookup a env)
 typeCheck env (App f a) = do
     fTy <- typeCheck env f
     case fTy of
-        Arr aTy bTy -> assertTy aTy env a *> pure bTy
+        Arr aTy bTy -> assertTy aTy env a $> bTy
         _ -> mzero
 typeCheck env (Ifz g t e) = do
     assertTy Nat env g
@@ -45,7 +46,7 @@ typeCheck env (Lam (Name n _) aTy bind) = do
 typeCheck env (Fix (Name n _) ty bind) = do
     instantiateAndThen n ty env bind (assertTy ty)
     pure ty
-typeCheck env (Suc e) = assertTy Nat env e *> pure Nat
+typeCheck env (Suc e) = assertTy Nat env e $> Nat
 typeCheck _ Zero = pure Nat
 
 typeCheckTop :: Exp Text -> Maybe Ty
@@ -71,8 +72,8 @@ bigStep env (Ifz i t e) = do
                 -- TODO Allow Fix?
                 _ -> mzero
         _ -> mzero
-bigStep env v@(Lam _ _ _) = pure v
-bigStep env v@(Fix _ _ _) = pure v
+bigStep env v@Lam{} = pure v
+bigStep env v@Fix{} = pure v
 bigStep env v@Zero = pure v
 bigStep env (Suc e) = Suc <$> bigStep env e
 

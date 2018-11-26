@@ -1,6 +1,6 @@
 module Pcf.Cli where
 
-import Control.Monad (when)
+import Control.Monad (unless)
 import Data.Text (Text)
 import qualified Data.Text as T
 import System.Console.Haskeline (InputT, defaultSettings, getInputLine, outputStr, outputStrLn, runInputT)
@@ -28,7 +28,7 @@ loop handler = do
         Nothing -> pure ()
         Just ":q" -> pure ()
         Just input -> do
-            when (not (T.null input)) (handler input)
+            unless (T.null input) (handler input)
             loop handler
 
 defaultHandler :: Handler
