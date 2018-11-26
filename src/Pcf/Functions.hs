@@ -68,6 +68,7 @@ bigStep env (Ifz i t e) = do
         Suc ev ->
             case e of
                 Lam (Name n _) _ bind -> instantiateAndThen n ev env bind bigStep
+                -- TODO Allow Fix?
                 _ -> mzero
         _ -> mzero
 bigStep env v@(Lam _ _ _) = pure v
