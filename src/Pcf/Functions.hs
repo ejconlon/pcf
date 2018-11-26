@@ -1,13 +1,13 @@
 module Pcf.Functions where
 
-import Bound (Scope, abstract1, instantiate1)
-import Bound.Name (Name(..))
-import Control.Monad (guard, mzero)
-import Data.Functor (($>))
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Data.Text (Text)
-import Pcf.Types
+import           Bound         (Scope, abstract1, instantiate1)
+import           Bound.Name    (Name (..))
+import           Control.Monad (guard, mzero)
+import           Data.Functor  (($>))
+import           Data.Map      (Map)
+import qualified Data.Map      as Map
+import           Data.Text     (Text)
+import           Pcf.Types
 
 instantiateAndThen :: (Monad f, Ord a) => a -> w -> Map a w -> Scope () f a -> (Map a w -> f a -> r) -> r
 instantiateAndThen v w env bind f =
@@ -34,7 +34,7 @@ typeCheck env (App f a) = do
     fTy <- typeCheck env f
     case fTy of
         Arr aTy bTy -> assertTy aTy env a $> bTy
-        _ -> mzero
+        _           -> mzero
 typeCheck env (Ifz g t e) = do
     assertTy Nat env g
     tTy <- typeCheck env t
@@ -70,7 +70,7 @@ bigStep env (Ifz i t e) = do
             case e of
                 Lam (Name n _) _ bind -> instantiateAndThen n ev env bind bigStep
                 -- TODO Allow Fix?
-                _ -> mzero
+                _                     -> mzero
         _ -> mzero
 bigStep env v@Lam{} = pure v
 bigStep env v@Fix{} = pure v

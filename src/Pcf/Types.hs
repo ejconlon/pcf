@@ -2,15 +2,15 @@
 
 module Pcf.Types where
 
-import Bound (Bound(..), Scope, (>>>=))
-import Bound.Name (Name)
-import Control.Monad (ap)
-import Data.Deriving (deriveEq, deriveEq1, deriveShow, deriveShow1)
-import Data.Functor.Classes (Eq1(..), Show1(..))
-import Data.Text (Text)
-import Data.Vector (Vector)
-import Control.Monad.Gen (Gen, runGen)
-import Control.Monad.Trans.Maybe (MaybeT(..))
+import Bound                     (Bound (..), Scope, (>>>=))
+import Bound.Name                (Name)
+import Control.Monad             (ap)
+import Control.Monad.Gen         (Gen, runGen)
+import Control.Monad.Trans.Maybe (MaybeT (..))
+import Data.Deriving             (deriveEq, deriveEq1, deriveShow, deriveShow1)
+import Data.Functor.Classes      (Eq1 (..), Show1 (..))
+import Data.Text                 (Text)
+import Data.Vector               (Vector)
 
 data SExp a = SAtom a | SList [SExp a] deriving (Show, Eq, Functor, Foldable, Traversable)
 

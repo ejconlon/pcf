@@ -1,16 +1,16 @@
 module Pcf.Parser where
 
-import Bound (abstract1)
-import Bound.Name (Name(..))
-import Control.Applicative (Alternative(..))
-import Control.Monad (guard, mzero)
-import Data.Set (Set)
-import qualified Data.Set as Set
-import Data.Text (Text)
-import Data.Void (Void)
-import Pcf.Types (Exp(..), SExp(..), Ty(..))
-import qualified Text.Megaparsec as MP
-import qualified Text.Megaparsec.Char as MPC
+import           Bound                      (abstract1)
+import           Bound.Name                 (Name (..))
+import           Control.Applicative        (Alternative (..))
+import           Control.Monad              (guard, mzero)
+import           Data.Set                   (Set)
+import qualified Data.Set                   as Set
+import           Data.Text                  (Text)
+import           Data.Void                  (Void)
+import           Pcf.Types                  (Exp (..), SExp (..), Ty (..))
+import qualified Text.Megaparsec            as MP
+import qualified Text.Megaparsec.Char       as MPC
 import qualified Text.Megaparsec.Char.Lexer as MPCL
 
 type Parser = MP.Parsec Void Text
@@ -49,7 +49,7 @@ readTy :: Alternative m => SExp Text -> m Ty
 readTy (SAtom t) = if t == "Nat" then pure Nat else empty
 readTy (SList ts) = case ts of
     [SAtom "->", l, r] -> Arr <$> readTy l <*> readTy r
-    _ -> empty
+    _                  -> empty
 
 keywords :: Set Text
 keywords = Set.fromList ["ifz", "lam", "fix", "suc", "zero", "Nat", "->"]

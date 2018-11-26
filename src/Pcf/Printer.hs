@@ -1,21 +1,21 @@
 module Pcf.Printer (printExp) where
 
-import Bound.Name (Name(..))
-import Control.Monad.Gen (MonadGen(..))
-import Data.Text (Text)
-import qualified Data.Text as Text
-import Pcf.Functions (instantiateAndThen')
-import Pcf.Types (Exp(..), SExp(..), Ty(..))
+import           Bound.Name        (Name (..))
+import           Control.Monad.Gen (MonadGen (..))
+import           Data.Text         (Text)
+import qualified Data.Text         as Text
+import           Pcf.Functions     (instantiateAndThen')
+import           Pcf.Types         (Exp (..), SExp (..), Ty (..))
 
 printExp :: Exp Text -> Text
 printExp = emit . repExp
 
 emit :: SExp Text -> Text
-emit (SAtom t) = t
+emit (SAtom t)  = t
 emit (SList ts) = "(" <> Text.intercalate " " (fmap emit ts) <> ")"
 
 repTy :: Ty -> SExp Text
-repTy Nat = SAtom "Nat"
+repTy Nat       = SAtom "Nat"
 repTy (Arr l r) = SList [SAtom "->", repTy l, repTy r]
 
 repExp :: Exp Text -> SExp Text

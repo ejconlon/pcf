@@ -1,12 +1,13 @@
 module Pcf.Repl where
 
-import Data.Text (Text)
-import Pcf.Cli (Handler, outputStrText, outputStrLnText, printText, runMain)
-import Pcf.Functions (typeCheckTop, bigStepTop)
-import Pcf.Parser (readExp, sexp)
-import Pcf.Types (Exp(..), SExp(..))
-import System.Console.Haskeline (InputT)
-import qualified Text.Megaparsec as MP
+import           Data.Text                (Text)
+import           Pcf.Cli                  (Handler, outputStrLnText, outputStrText, printText,
+                                           runMain)
+import           Pcf.Functions            (bigStepTop, typeCheckTop)
+import           Pcf.Parser               (readExp, sexp)
+import           Pcf.Types                (Exp (..), SExp (..))
+import           System.Console.Haskeline (InputT)
+import qualified Text.Megaparsec          as MP
 
 handleExp :: Exp Text -> InputT IO ()
 handleExp e = do
@@ -31,7 +32,7 @@ handleSExp se = do
     let me = readExp se
     case me of
         Nothing -> outputStrLnText "ERROR: Cannot parse Exp"
-        Just e -> handleExp e
+        Just e  -> handleExp e
 
 replHandler :: Handler
 replHandler input = do

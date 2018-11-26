@@ -1,9 +1,10 @@
 module Pcf.Cli where
 
-import Control.Monad (unless)
-import Data.Text (Text)
-import qualified Data.Text as T
-import System.Console.Haskeline (InputT, defaultSettings, getInputLine, outputStr, outputStrLn, runInputT)
+import           Control.Monad            (unless)
+import           Data.Text                (Text)
+import qualified Data.Text                as T
+import           System.Console.Haskeline (InputT, defaultSettings, getInputLine, outputStr,
+                                           outputStrLn, runInputT)
 
 -- TODO look into repline
 
