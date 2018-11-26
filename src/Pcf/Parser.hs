@@ -4,6 +4,7 @@ import           Bound                      (abstract1)
 import           Bound.Name                 (Name (..))
 import           Control.Applicative        (Alternative (..))
 import           Control.Monad              (guard, mzero)
+import           Data.List                  (foldl')
 import           Data.Set                   (Set)
 import qualified Data.Set                   as Set
 import           Data.Text                  (Text)
@@ -57,22 +58,24 @@ keywords = Set.fromList ["ifz", "lam", "fix", "suc", "zero", "Nat", "->"]
 -- TODO use applicative do and remove monad constraint
 readExp :: (Monad m, Alternative m) => SExp Text -> m (Exp Text)
 readExp (SAtom t) = pure (if t == "zero" then Zero else Var t)
-readExp (SList ts) = case ts of
-    [SAtom "suc", y] -> Suc <$> readExp y
-    [SAtom "ifz", g, t, e] -> Ifz <$> readExp g <*> readExp t <*> readExp e
-    [SAtom "lam", SAtom n, ty, e] -> do
-        guard (not (Set.member n keywords))
-        ty' <- readTy ty
-        s <- abstract1 n <$> readExp e
-        pure (Lam (Name n ()) ty' s)
-    [SAtom "fix", SAtom n, ty, e] -> do
-        guard (not (Set.member n keywords))
-        ty' <- readTy ty
-        e' <- readExp e
-        let s = abstract1 n e'
-        pure (Fix (Name n ()) ty' s)
-    [l, r] -> App <$> readExp l <*> readExp r
-    _ -> empty
+readExp (SList ts) = go ts where
+    go ts = case ts of
+        [SAtom "suc", y] -> Suc <$> readExp y
+        [SAtom "ifz", g, t, e] -> Ifz <$> readExp g <*> readExp t <*> readExp e
+        [SAtom "lam", SAtom n, ty, e] -> do
+            guard (not (Set.member n keywords))
+            ty' <- readTy ty
+            s <- abstract1 n <$> readExp e
+            pure (Lam (Name n ()) ty' s)
+        [SAtom "fix", SAtom n, ty, e] -> do
+            guard (not (Set.member n keywords))
+            ty' <- readTy ty
+            e' <- readExp e
+            let s = abstract1 n e'
+            pure (Fix (Name n ()) ty' s)
+        l:r:rs -> assoc rs (App <$> readExp l <*> readExp r)
+        _ -> empty
+    assoc rs me = foldl' (\me r -> App <$> me <*> readExp r) me rs
 
 parseTest :: Text -> Maybe (Exp Text)
 parseTest t = MP.parseMaybe sexp t >>= readExp
