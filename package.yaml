@@ -19,7 +19,7 @@ dependencies:
 - exceptions
 - haskeline
 - megaparsec
-- monad-gen
+# - monad-gen
 - mtl
 - text
 - transformers

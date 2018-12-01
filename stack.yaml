@@ -1,9 +1,9 @@
-resolver: lts-12.19
+resolver: lts-12.20
 # resolver: nightly-2018-11-24
 # allow-newer: true
 
 packages:
 - .
 
-extra-deps:
-- monad-gen-0.3.0.1
+# extra-deps:
+# - monad-gen-0.3.0.1

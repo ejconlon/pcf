@@ -5,8 +5,6 @@ module Pcf.Types where
 import Bound                     (Bound (..), Scope, (>>>=))
 import Bound.Name                (Name)
 import Control.Monad             (ap)
-import Control.Monad.Gen         (Gen, runGen)
-import Control.Monad.Trans.Maybe (MaybeT (..))
 import Data.Deriving             (deriveEq, deriveEq1, deriveShow, deriveShow1)
 import Data.Functor.Classes      (Eq1 (..), Show1 (..))
 import Data.Text                 (Text)
@@ -48,11 +46,6 @@ instance Monad Exp where
     (Fix i t b) >>= f = Fix i t (b >>>= f)
     (Suc e) >>= f = Suc (e >>= f)
     Zero >>= _ = Zero
-
-type TyM a = MaybeT (Gen a)
-
-runTyM :: Enum a => TyM a b -> Maybe b
-runTyM = runGen . runMaybeT
 
 -- type Clos a = Vector (ExpC a)
 

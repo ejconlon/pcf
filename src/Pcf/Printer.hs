@@ -1,7 +1,6 @@
 module Pcf.Printer (printExp, repExp) where
 
 import           Bound.Name        (Name (..))
-import           Control.Monad.Gen (MonadGen (..))
 import           Data.Text         (Text)
 import qualified Data.Text         as Text
 import           Pcf.Functions     (instantiateAndThen')
