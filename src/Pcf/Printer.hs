@@ -1,4 +1,4 @@
-module Pcf.Printer (printExp) where
+module Pcf.Printer (printExp, repExp) where
 
 import           Bound.Name        (Name (..))
 import           Control.Monad.Gen (MonadGen (..))
@@ -18,13 +18,14 @@ repTy :: Ty -> SExp Text
 repTy Nat       = SAtom "Nat"
 repTy (Arr l r) = SList [SAtom "->", repTy l, repTy r]
 
+unassoc :: [SExp Text] -> Exp Text -> SExp Text
+unassoc ts (App l r) = unassoc (repExp r : ts) l
+unassoc ts x = SList (repExp x : ts)
+
 repExp :: Exp Text -> SExp Text
 repExp x = case x of
     Var a -> SAtom a
-    App l r ->
-        let l' = repExp l
-            r' = repExp r
-        in SList [l', r']
+    App l r -> unassoc [repExp r] l
     Ifz g t e ->
         let g' = repExp g
             t' = repExp t

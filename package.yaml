@@ -16,6 +16,7 @@ dependencies:
 - bound
 - containers
 - deriving-compat
+- exceptions
 - haskeline
 - megaparsec
 - monad-gen

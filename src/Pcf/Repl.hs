@@ -1,45 +1,66 @@
 module Pcf.Repl where
 
+import           Data.Functor             (($>))
 import           Data.Text                (Text)
-import           Pcf.Cli                  (Handler, outputStrLnText, outputStrText, printText,
-                                           runMain)
+import           Pcf.Cli                  (Cli, CliConfig(..), Command, outputShow, outputStrLn, outputStr, runRepl)
 import           Pcf.Functions            (bigStepTop, typeCheckTop)
 import           Pcf.Parser               (readExp, sexp)
+import           Pcf.Printer              (repExp)
 import           Pcf.Types                (Exp (..), SExp (..))
-import           System.Console.Haskeline (InputT)
 import qualified Text.Megaparsec          as MP
 
-handleExp :: Exp Text -> InputT IO ()
+data ReplState = ReplState deriving (Eq, Show)
+
+emptyReplState :: ReplState
+emptyReplState = ReplState
+
+type Repl = Cli ReplState
+type ReplCommand = Command ReplState
+
+handleExp :: Exp Text -> Repl ()
 handleExp e = do
-    outputStrText "Parsed Exp: "
-    printText e
+    outputStr "Parsed Exp: "
+    outputShow e
     let mty = typeCheckTop e
     maybe
-        (outputStrLnText "ERROR: Cannot typecheck exp")
-        (\ty -> outputStrText "Type: " >> printText ty)
+        (outputStrLn "ERROR: Cannot typecheck exp")
+        (\ty -> outputStr "Type: " >> outputShow ty)
         mty
     let mv = bigStepTop e
     maybe
-        (outputStrLnText "ERROR: Cannot evaluate exp")
-        (\v -> outputStrText "Value: " >> printText v)
+        (outputStrLn "ERROR: Cannot evaluate exp")
+        (\v -> outputStr "Value: " >> outputShow v)
         mv
 
     -- TODO strip names, typecheck, evaluate
-handleSExp :: SExp Text -> InputT IO ()
+handleSExp :: SExp Text -> Repl ()
 handleSExp se = do
-    outputStrText "Parsed SExp: "
-    printText se
+    outputStr "Parsed SExp: "
+    outputShow se
     let me = readExp se
     case me of
-        Nothing -> outputStrLnText "ERROR: Cannot parse Exp"
-        Just e  -> handleExp e
+        Nothing -> outputStrLn "ERROR: Cannot parse Exp"
+        Just e  ->
+            let rendered = repExp e
+            in if (rendered /= se)
+                then do
+                    outputStrLn "ERROR: Mismatched pretty print"
+                    outputShow rendered
+                else handleExp e
 
-replHandler :: Handler
-replHandler input = do
+replCommand :: ReplCommand
+replCommand input = do
     let mse = MP.parseMaybe sexp input
     case mse of
-        Nothing -> outputStrLnText "ERROR: Cannot parse SExp"
+        Nothing -> outputStrLn "ERROR: Cannot parse SExp"
         Just se -> handleSExp se
 
+replConfig :: CliConfig
+replConfig = CliConfig
+  { ccPrompt = "> "
+  , ccQuit = ":q"
+  , ccGreeting = "Welcome to the PCF Repl."
+  }
+
 main :: IO ()
-main = runMain "Welcome to the PCF Repl." replHandler
+main = runRepl replConfig replCommand emptyReplState $> ()
