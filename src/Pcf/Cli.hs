@@ -15,12 +15,6 @@ import qualified Data.Text                as T
 import qualified Data.Text.IO             as TIO
 import qualified System.Console.Haskeline as H
 
-data CliConfig = CliConfig
-    { ccPrompt :: Text
-    , ccGreeting :: Text
-    , ccQuit :: Text
-    } deriving (Eq, Show)
-
 newtype Cli s a = Cli { unCli :: H.InputT (ReaderT (IORef s) IO) a }
     deriving (Functor, Applicative, Monad, MonadIO)
 
@@ -40,43 +34,44 @@ getInputLine prompt = Cli (fmap (fmap T.pack) (H.getInputLine (T.unpack prompt))
 outputStr :: Text -> Cli s ()
 outputStr = Cli . H.outputStr . T.unpack
 
-outputParts :: [Text] -> Cli s ()
-outputParts (x:xs) = outputStr x >> outputParts xs
-outputParts [] = pure ()
+-- outputParts :: [Text] -> Cli s ()
+-- outputParts (x:xs) = outputStr x >> outputParts xs
+-- outputParts [] = pure ()
 
 outputStrLn :: Text -> Cli s ()
 outputStrLn = Cli . H.outputStrLn . T.unpack
 
-outputPartsLn :: [Text] -> Cli s ()
-outputPartsLn xs = outputParts xs >> outputStrLn ""
+-- outputPartsLn :: [Text] -> Cli s ()
+-- outputPartsLn xs = outputParts xs >> outputStrLn ""
 
 outputShow :: Show a => a -> Cli s ()
 outputShow = liftIO . print
 
-type Command s = Text -> Cli s ()
+data ReplDirective = ReplQuit | ReplContinue deriving (Eq, Show)
 
-loop :: CliConfig -> Command s -> Cli s ()
-loop cc command = do
-    minput <- getInputLine (ccPrompt cc)
-    case minput of
-        Nothing -> pure ()
-        Just input -> do
-            if input == ccQuit cc
-                then pure ()
-                else do
-                    unless (T.null input) (command input)
-                    loop cc command
+type Command s = Text -> Cli s ReplDirective
 
-repl :: CliConfig -> Command s -> Cli s ()
-repl cc command = do
-    outputStrLn (ccGreeting cc)
-    outputPartsLn ["Enter `", ccQuit cc, "` to quit."]
-    loop cc command
+repl :: Text -> Command s -> Cli s ()
+repl prompt command = loop where
+    loop = do
+        minput <- getInputLine prompt
+        case minput of
+            Nothing -> pure ()
+            Just input
+                | T.null input -> loop
+                | otherwise -> do
+                    directive <- command input
+                    case directive of
+                        ReplQuit -> pure ()
+                        ReplContinue -> loop
 
-runRepl :: CliConfig -> Command s -> s -> IO s
-runRepl cc command initState = do
+runCli :: Cli s a -> s -> IO (a, s)
+runCli cli initState = do
     ref <- newIORef initState
-    let actInput = unCli $ repl cc command
-        actReader = H.runInputT H.defaultSettings actInput
-    runReaderT actReader ref
-    readIORef ref
+    let actReader = H.runInputT H.defaultSettings (unCli cli)
+    result <- runReaderT actReader ref
+    finalState <- readIORef ref
+    pure (result, finalState)
+
+execCli :: Cli s () -> s -> IO s
+execCli cli initState = snd <$> runCli cli initState

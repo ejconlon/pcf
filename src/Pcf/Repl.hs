@@ -2,7 +2,7 @@ module Pcf.Repl where
 
 import           Data.Functor             (($>))
 import           Data.Text                (Text)
-import           Pcf.Cli                  (Cli, CliConfig(..), Command, outputShow, outputStrLn, outputStr, runRepl)
+import           Pcf.Cli                  (Cli, Command, ReplDirective(..), execCli, outputShow, outputStrLn, outputStr, repl)
 import           Pcf.Functions            (bigStepTop, typeCheckTop)
 import           Pcf.Parser               (readExp, sexp)
 import           Pcf.Printer              (repExp)
@@ -50,17 +50,20 @@ handleSExp se = do
 
 replCommand :: ReplCommand
 replCommand input = do
-    let mse = MP.parseMaybe sexp input
-    case mse of
-        Nothing -> outputStrLn "ERROR: Cannot parse SExp"
-        Just se -> handleSExp se
+    case input of
+        ":q" -> pure ReplQuit
+        _ -> do
+            let mse = MP.parseMaybe sexp input
+            case mse of
+                Nothing -> outputStrLn "ERROR: Cannot parse SExp"
+                Just se -> handleSExp se
+            pure ReplContinue
 
-replConfig :: CliConfig
-replConfig = CliConfig
-  { ccPrompt = "> "
-  , ccQuit = ":q"
-  , ccGreeting = "Welcome to the PCF Repl."
-  }
+niceRepl :: Repl ()
+niceRepl = do
+    outputStrLn "Welcome to the PCF Repl."
+    outputStrLn "Enter `:q` to exit."
+    repl "> " replCommand
 
 main :: IO ()
-main = runRepl replConfig replCommand emptyReplState $> ()
+main = execCli niceRepl emptyReplState $> ()
