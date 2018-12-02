@@ -13,7 +13,7 @@ import           Data.Text                (Text)
 import           Data.Typeable            (Typeable)
 import           Pcf.Cli                  (Cli, Command, ReplDirective(..), execCli, outputShow, outputStrLn, outputStr, repl)
 import           Pcf.Functions            (bigStepTop, typeCheckTop)
-import           Pcf.Parser               (readExp, sexp)
+import           Pcf.Parser               (readExp, sexpParser)
 import           Pcf.Printer              (repExp)
 import           Pcf.Types                (Exp (..), SExp (..))
 import qualified Text.Megaparsec          as MP
@@ -70,7 +70,7 @@ printCatch command input = catch (command input) (\(e :: ReplExc) -> outputStr "
 
 innerCommand :: ReplCommand
 innerCommand input = do
-    let mse = MP.parseMaybe sexp input
+    let mse = MP.parseMaybe sexpParser input
     case mse of
         Nothing -> throwM (CannotParseSexp input)
         Just se -> handleSExp se

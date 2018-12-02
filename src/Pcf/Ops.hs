@@ -14,7 +14,8 @@ import Data.Text (Text)
 import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
 import Pcf.Functions (bigStep, typeCheck)
-import Pcf.Types (Exp(..), Stmt(..), Ty(..))
+import           Pcf.Parser               (readExp, readStmt, readSExp)
+import Pcf.Types (Exp(..), SExp(..), Stmt(..), Ty(..))
 
 data Data = Data
     { datDecls :: Map Text Ty
@@ -25,19 +26,16 @@ data Data = Data
 emptyData :: Data
 emptyData = Data Map.empty Map.empty
 
-data RealExc =
-      AlreadyDeclared
-    | NotDeclared
-    | AlreadyDefined
+data Exc =
+      AlreadyDeclared Text
+    | NotDeclared Text
+    | AlreadyDefined Text
     | CannotType (Exp Text)
     | CannotEval (Exp Text)
     | TypeMismatch (Exp Text) Ty Ty
-    | HasHoles (Set Text)
-    deriving (Generic, Eq, Show)
-
-data Exc =
-      NamedExc Text RealExc
-    | AnonExc RealExc
+    | CannotParseExp (SExp Text)
+    | CannotParseStmt (SExp Text)
+    | CannotParseSExp Text
     deriving (Generic, Eq, Show, Typeable)
 instance Exception Exc
 
@@ -60,7 +58,7 @@ declare :: Text -> Ty -> Ops ()
 declare name ty = do
     decls <- use (field @"datDecls")
     if Map.member name decls
-        then throwError (NamedExc name AlreadyDeclared)
+        then throwError (AlreadyDeclared name)
         else pure ()
     let decls' = Map.insert name ty decls
     assign (field @"datDecls") decls'
@@ -70,16 +68,16 @@ define :: Text -> Exp Text -> Ops ()
 define name e = do
     decls <- use (field @"datDecls")
     case Map.lookup name decls of
-        Nothing -> throwError (NamedExc name NotDeclared)
+        Nothing -> throwError (NotDeclared name)
         Just expectedTy -> do
             defns <- use (field @"datDefns")
             if Map.member name defns
-                then throwError (NamedExc name AlreadyDefined)
+                then throwError (AlreadyDefined name)
                 else pure ()
             case typeCheck (Map.delete name decls) e of
-                Nothing -> throwError (NamedExc name (CannotType e))
+                Nothing -> throwError (CannotType e)
                 Just actualTy ->
-                    unless (actualTy /= expectedTy) (throwError (NamedExc name (TypeMismatch e expectedTy actualTy)))
+                    unless (actualTy /= expectedTy) (throwError (TypeMismatch e expectedTy actualTy))
             let defns' = Map.insert name e defns
             assign (field @"datDefns") defns'
 
@@ -91,15 +89,24 @@ typeCheckOps :: Exp Text -> Ops Ty
 typeCheckOps e = do
     decls <- use (field @"datDecls")
     case typeCheck decls e of
-        Nothing -> throwError (AnonExc (CannotType e))
+        Nothing -> throwError (CannotType e)
         Just ty -> pure ty
 
 bigStepOps :: Exp Text -> Ops (Exp Text)
 bigStepOps e = do
     defns <- use (field @"datDefns")
     case bigStep defns e of
-        Nothing -> throwError (AnonExc (CannotEval e))
+        Nothing -> throwError (CannotEval e)
         Just e' -> pure e'
+
+parseSExp :: Text -> Ops (SExp Text)
+parseSExp input = maybe (throwError (CannotParseSExp input)) pure (readSExp input)
+
+parseExp :: SExp Text -> Ops (Exp Text)
+parseExp se = maybe (throwError (CannotParseExp se)) pure (readExp se)
+
+parseStmt :: SExp Text -> Ops (Stmt Text)
+parseStmt se = maybe (throwError (CannotParseStmt se)) pure (readStmt se)
 
 clear :: Ops ()
 clear = put emptyData

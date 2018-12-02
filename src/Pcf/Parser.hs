@@ -1,4 +1,4 @@
-module Pcf.Parser where
+module Pcf.Parser (readExp, readStmt, readTy, readSExp, sexpParser) where
 
 import           Bound                      (abstract1)
 import           Bound.Name                 (Name (..))
@@ -9,7 +9,7 @@ import           Data.Set                   (Set)
 import qualified Data.Set                   as Set
 import           Data.Text                  (Text)
 import           Data.Void                  (Void)
-import           Pcf.Types                  (Exp (..), SExp (..), Ty (..))
+import           Pcf.Types                  (Exp (..), SExp (..), Stmt (..), Ty (..))
 import qualified Text.Megaparsec            as MP
 import qualified Text.Megaparsec.Char       as MPC
 import qualified Text.Megaparsec.Char.Lexer as MPCL
@@ -34,17 +34,20 @@ parens = MP.between (symbol "(") (symbol ")")
 nonDelimPred :: Char -> Bool
 nonDelimPred c = c /= '(' && c /= ')' && c /= ' ' && c /= '\t' && c /= '\n'
 
-atom :: Parser Text
-atom = lexeme (MP.try (MP.takeWhile1P Nothing nonDelimPred))
+atomParser :: Parser Text
+atomParser = lexeme (MP.try (MP.takeWhile1P Nothing nonDelimPred))
 
-satom :: Parser (SExp Text)
-satom = SAtom <$> atom
+satomParser :: Parser (SExp Text)
+satomParser = SAtom <$> atomParser
 
-slist :: Parser (SExp Text)
-slist = SList <$> parens (MP.many (spaceConsumer *> sexp))
+slistParser :: Parser (SExp Text)
+slistParser = SList <$> parens (MP.many (spaceConsumer *> sexpParser))
 
-sexp :: Parser (SExp Text)
-sexp = satom <|> slist
+sexpParser :: Parser (SExp Text)
+sexpParser = satomParser <|> slistParser
+
+readSExp :: Text -> Maybe (SExp Text)
+readSExp = MP.parseMaybe sexpParser
 
 readTy :: Alternative m => SExp Text -> m Ty
 readTy (SAtom t) = if t == "Nat" then pure Nat else empty
@@ -77,5 +80,10 @@ readExp (SList ts) = go ts where
         _ -> empty
     assoc rs me = foldl' (\me r -> App <$> me <*> readExp r) me rs
 
-parseTest :: Text -> Maybe (Exp Text)
-parseTest t = MP.parseMaybe sexp t >>= readExp
+readStmt :: (Monad m, Alternative m) => SExp Text -> m (Stmt Text)
+readStmt (SAtom t) = empty
+readStmt (SList ts) = go ts where
+    go ts = case ts of
+        [SAtom "decl", SAtom n, ty] -> Decl n <$> readTy ty
+        [SAtom "defn", SAtom n, e] -> Defn n <$> readExp e
+        _ -> empty
