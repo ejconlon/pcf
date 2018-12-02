@@ -14,78 +14,44 @@ import           Data.Typeable              (Typeable)
 import           Pcf.Cli                    (Cli, Command, ReplDirective (..), execCli,
                                              outputShow, outputStr, outputStrLn, repl)
 import           Pcf.Functions              (bigStepTop, typeCheckTop)
+import           Pcf.Ops
 import           Pcf.Parser                 (readExp, sexpParser)
 import           Pcf.Printer                (repExp)
 import           Pcf.Types                  (Exp (..), SExp (..))
 import qualified Text.Megaparsec            as MP
 
-data ReplState = ReplState deriving (Eq, Show)
-
-data ReplExc =
-      CannotTypeCheck (Exp Text)
-    | CannotEvaluate (Exp Text)
-    | CannotParseExp (SExp Text)
-    | CannotParseSexp Text
-    deriving (Eq, Show, Typeable)
-instance Exception ReplExc
-
-emptyReplState :: ReplState
-emptyReplState = ReplState
-
-type Repl = Cli ReplState
-type ReplCommand = Command ReplState
-
-handleExp :: Exp Text -> Repl ()
-handleExp e = do
-    outputStr "Parsed Exp: "
-    outputShow e
-    let mty = typeCheckTop e
-    maybe
-        (throwM (CannotTypeCheck e))
-        (\ty -> outputStr "Type: " >> outputShow ty)
-        mty
-    let mv = bigStepTop e
-    maybe
-        (throwM (CannotEvaluate e))
-        (\v -> outputStr "Value: " >> outputShow v)
-        mv
-
-    -- TODO strip names, typecheck, evaluate
-handleSExp :: SExp Text -> Repl ()
-handleSExp se = do
-    outputStr "Parsed SExp: "
-    outputShow se
-    let me = readExp se
-    case me of
-        Nothing -> throwM (CannotParseExp se)
-        Just e  ->
-            let rendered = repExp e
-            in if rendered /= se
-                then do
-                    outputStrLn "WARNING: Mismatched pretty print"
-                    outputShow rendered
-                else handleExp e
+type Repl = Cli OpsData
+type ReplCommand = Command OpsData
 
 printCatch :: Command s -> Command s
-printCatch command input = catch (command input) (\(e :: ReplExc) -> outputStr "ERROR: " >> outputShow e $> ReplContinue)
+printCatch command input = catch (command input) $ \(e :: OpsExc) -> do
+    outputStr "ERROR: "
+    outputShow e
+    pure ReplContinue
 
 innerCommand :: ReplCommand
 innerCommand input = do
-    let mse = MP.parseMaybe sexpParser input
-    case mse of
-        Nothing -> throwM (CannotParseSexp input)
-        Just se -> handleSExp se
+    se <- interpretOps (parseSExp input)
+    outputStr "Parsed SExp: "
+    outputShow se
+    e <- interpretOps (parseExp se)
+    outputStr "Parsed Exp: "
+    outputShow e
+    ty <- interpretOps (typeCheckOps e)
+    outputStr "Type: "
+    outputShow ty
+    v <- interpretOps (bigStepOps e)
+    outputStr "Value: "
+    outputShow v
     pure ReplContinue
 
 outerCommand :: ReplCommand
 outerCommand input =
     case input of
-        ":q" -> pure ReplQuit
-        ":hang" -> do
-            -- exists to exercise interrupt handling
-            liftIO (forever (threadDelay maxBound))
-            pure ReplContinue
-        _ -> printCatch innerCommand input
+        ":q"     -> pure ReplQuit
+        ":hang"  -> liftIO (forever (threadDelay maxBound)) $> ReplContinue
+        ":clear" -> interpretOps clear $> ReplContinue
+        _        -> printCatch innerCommand input
 
 niceRepl :: Repl ()
 niceRepl = do
@@ -94,4 +60,4 @@ niceRepl = do
     repl "> " outerCommand
 
 main :: IO ()
-main = execCli niceRepl emptyReplState $> ()
+main = execCli niceRepl emptyOpsData $> ()
