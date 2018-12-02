@@ -26,7 +26,7 @@ withStateRef f = Cli (lift ask >>= lift . lift . f)
 
 instance MonadState s (Cli s) where
     get = withStateRef readIORef
-    put v = withStateRef (flip writeIORef v)
+    put v = withStateRef (`writeIORef` v)
 
 instance MonadThrow (Cli s) where
     throwM = Cli . H.throwIO

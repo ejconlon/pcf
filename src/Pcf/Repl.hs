@@ -60,7 +60,7 @@ handleSExp se = do
         Nothing -> throwM (CannotParseExp se)
         Just e  ->
             let rendered = repExp e
-            in if (rendered /= se)
+            in if rendered /= se
                 then do
                     outputStrLn "WARNING: Mismatched pretty print"
                     outputShow rendered
@@ -78,7 +78,7 @@ innerCommand input = do
     pure ReplContinue
 
 outerCommand :: ReplCommand
-outerCommand input = do
+outerCommand input =
     case input of
         ":q" -> pure ReplQuit
         ":hang" -> do
