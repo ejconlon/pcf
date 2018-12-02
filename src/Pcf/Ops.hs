@@ -77,7 +77,7 @@ define name e = do
             case typeCheck (Map.delete name decls) e of
                 Nothing -> throwError (CannotType e)
                 Just actualTy ->
-                    unless (actualTy /= expectedTy) (throwError (TypeMismatch e expectedTy actualTy))
+                    unless (actualTy == expectedTy) (throwError (TypeMismatch e expectedTy actualTy))
             let defns' = Map.insert name e defns
             assign (field @"defns") defns'
 
