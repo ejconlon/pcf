@@ -7,6 +7,7 @@ import           Control.Exception        (Exception, SomeException)
 import           Control.Monad            (forever)
 import           Control.Monad.Catch      (throwM, catch)
 import           Control.Monad.IO.Class   (liftIO)
+import           Control.Monad.State.Strict (MonadState(..))
 import           Data.Functor             (($>))
 import           Data.Text                (Text)
 import           Data.Typeable            (Typeable)
@@ -16,8 +17,6 @@ import           Pcf.Parser               (readExp, sexp)
 import           Pcf.Printer              (repExp)
 import           Pcf.Types                (Exp (..), SExp (..))
 import qualified Text.Megaparsec          as MP
-
--- TODO catch exceptions
 
 data ReplState = ReplState deriving (Eq, Show)
 
@@ -82,6 +81,7 @@ outerCommand input = do
     case input of
         ":q" -> pure ReplQuit
         ":hang" -> do
+            -- exists to exercise interrupt handling
             liftIO (forever (threadDelay maxBound))
             pure ReplContinue
         _ -> printCatch innerCommand input

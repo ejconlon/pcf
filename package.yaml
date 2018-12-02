@@ -17,7 +17,10 @@ dependencies:
 - containers
 - deriving-compat
 - exceptions
+- generic-lens
 - haskeline
+- lens
+# - lens-family-core
 - megaparsec
 # - monad-gen
 - mtl
@@ -34,12 +37,16 @@ dependencies:
 # - unordered-containers
 
 default-extensions:
+  - BangPatterns
+  - DataKinds
   - DeriveFunctor
   - DeriveFoldable
   - DeriveGeneric
   - DeriveTraversable
+  - FlexibleContexts
   - GeneralizedNewtypeDeriving
   - OverloadedStrings
+  - TypeApplications
 
 library:
   source-dirs: src

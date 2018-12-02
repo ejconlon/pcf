@@ -4,8 +4,8 @@ import           Bound         (Scope, abstract1, instantiate1)
 import           Bound.Name    (Name (..))
 import           Control.Monad (guard, mzero)
 import           Data.Functor  (($>))
-import           Data.Map      (Map)
-import qualified Data.Map      as Map
+import           Data.Map.Strict      (Map)
+import qualified Data.Map.Strict      as Map
 import           Data.Text     (Text)
 import           Pcf.Types
 

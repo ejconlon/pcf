@@ -47,6 +47,11 @@ instance Monad Exp where
     (Suc e) >>= f = Suc (e >>= f)
     Zero >>= _ = Zero
 
+data Stmt a =
+      Decl Text Ty
+    | Defn Text (Exp a)
+    deriving (Eq, Show, Functor, Foldable, Traversable)
+
 -- type Clos a = Vector (ExpC a)
 
 -- data ExpC a =
