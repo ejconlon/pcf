@@ -41,8 +41,7 @@ outputStr :: Text -> Cli s ()
 outputStr = Cli . H.outputStr . T.unpack
 
 outputParts :: [Text] -> Cli s ()
-outputParts (x:xs) = outputStr x >> outputParts xs
-outputParts [] = pure ()
+outputParts xs = foldr ((>>) . outputStr) (pure ()) xs
 
 outputStrLn :: Text -> Cli s ()
 outputStrLn = Cli . H.outputStrLn . T.unpack

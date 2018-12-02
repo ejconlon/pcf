@@ -2,22 +2,24 @@
 
 module Pcf.Repl where
 
-import Control.Concurrent     (threadDelay)
-import Control.Exception (Exception)
-import Control.Monad          (forever, unless)
-import Control.Monad.Catch    (catch, throwM)
-import Control.Monad.IO.Class (liftIO)
-import Data.Foldable (for_)
-import Data.Functor           (($>))
-import Data.Map.Strict                  (Map)
+import           Control.Concurrent     (threadDelay)
+import           Control.Exception      (Exception)
+import           Control.Monad          (forever, unless)
+import           Control.Monad.Catch    (catch, throwM)
+import           Control.Monad.IO.Class (liftIO)
+import           Data.Foldable          (for_)
+import           Data.Functor           (($>))
+import           Data.Map.Strict        (Map)
 import qualified Data.Map.Strict        as Map
-import Data.Text (Text)
-import qualified Data.Text as Text
-import Data.Typeable (Typeable)
-import Pcf.Cli                (Cli, Command, ReplDirective (..), execCli, outputShow,
-                               outputStr, outputStrLn, outputPartsLn, repl)
-import Pcf.Ops                (OpsData, OpsExc, bigStepOps, clear, emptyOpsData, interpretOps,
-                               parseExp, parseSExp, parseStmt, processStmt, typeCheckOps)
+import           Data.Text              (Text)
+import qualified Data.Text              as Text
+import           Data.Typeable          (Typeable)
+import           Pcf.Cli                (Cli, Command, ReplDirective (..), execCli,
+                                         outputPartsLn, outputShow, outputStr, outputStrLn,
+                                         repl)
+import           Pcf.Ops                (OpsData, OpsExc, bigStepOps, clear, emptyOpsData,
+                                         interpretOps, parseExp, parseSExp, parseStmt,
+                                         processStmt, typeCheckOps)
 
 type Repl = Cli OpsData
 type ReplCommand = Command OpsData
@@ -101,12 +103,12 @@ optionCommands = Map.fromList
     ]
 
 outerCommand :: ReplCommand
-outerCommand input = do
+outerCommand input =
     case Text.uncons input of
         Just (':', rest) -> do
             let (name, subInput) = Text.breakOn " " rest
             case Map.lookup name optionCommands of
-                Nothing -> throwM (MissingCommand name)
+                Nothing           -> throwM (MissingCommand name)
                 Just (_, command) -> command (Text.drop 1 subInput)
         _ -> execCommand input
 
