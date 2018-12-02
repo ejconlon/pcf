@@ -40,9 +40,9 @@ getInputLine prompt = Cli (fmap (fmap T.pack) (H.getInputLine (T.unpack prompt))
 outputStr :: Text -> Cli s ()
 outputStr = Cli . H.outputStr . T.unpack
 
--- outputParts :: [Text] -> Cli s ()
--- outputParts (x:xs) = outputStr x >> outputParts xs
--- outputParts [] = pure ()
+outputParts :: [Text] -> Cli s ()
+outputParts (x:xs) = outputStr x >> outputParts xs
+outputParts [] = pure ()
 
 outputStrLn :: Text -> Cli s ()
 outputStrLn = Cli . H.outputStrLn . T.unpack
@@ -50,8 +50,8 @@ outputStrLn = Cli . H.outputStrLn . T.unpack
 outputNewline :: Cli s ()
 outputNewline = liftIO (putStrLn "")
 
--- outputPartsLn :: [Text] -> Cli s ()
--- outputPartsLn xs = outputParts xs >> outputStrLn ""
+outputPartsLn :: [Text] -> Cli s ()
+outputPartsLn xs = outputParts xs >> outputStrLn ""
 
 outputShow :: Show a => a -> Cli s ()
 outputShow = liftIO . print

@@ -81,9 +81,9 @@ define name e = do
             let defns' = Map.insert name e defns
             assign (field @"defns") defns'
 
-process :: Stmt Text -> Ops ()
-process (Decl name ty)  = declare name ty
-process (Defn name exp) = define name exp
+processStmt :: Stmt Text -> Ops ()
+processStmt (Decl name ty)  = declare name ty
+processStmt (Defn name exp) = define name exp
 
 typeCheckOps :: Exp Text -> Ops Ty
 typeCheckOps e = do
