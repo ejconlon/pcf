@@ -1,21 +1,21 @@
 module Pcf.Ops where
 
-import Control.Lens (use, assign)
-import Control.Monad (unless)
-import Control.Monad.Catch (MonadThrow(..), Exception)
-import Control.Monad.Except (ExceptT, MonadError(..), runExceptT)
-import Control.Monad.State.Strict (MonadState(..), State, runState, gets)
-import Data.Generics.Product (field)
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
-import Data.Set (Set)
-import qualified Data.Set as Set
-import Data.Text (Text)
-import Data.Typeable (Typeable)
-import GHC.Generics (Generic)
-import Pcf.Functions (bigStep, typeCheck)
-import           Pcf.Parser               (readExp, readStmt, readSExp)
-import Pcf.Types (Exp(..), SExp(..), Stmt(..), Ty(..))
+import           Control.Lens               (assign, use)
+import           Control.Monad              (unless)
+import           Control.Monad.Catch        (Exception, MonadThrow (..))
+import           Control.Monad.Except       (ExceptT, MonadError (..), runExceptT)
+import           Control.Monad.State.Strict (MonadState (..), State, gets, runState)
+import           Data.Generics.Product      (field)
+import           Data.Map.Strict            (Map)
+import qualified Data.Map.Strict            as Map
+import           Data.Set                   (Set)
+import qualified Data.Set                   as Set
+import           Data.Text                  (Text)
+import           Data.Typeable              (Typeable)
+import           GHC.Generics               (Generic)
+import           Pcf.Functions              (bigStep, typeCheck)
+import           Pcf.Parser                 (readExp, readSExp, readStmt)
+import           Pcf.Types                  (Exp (..), SExp (..), Stmt (..), Ty (..))
 
 data Data = Data
     { datDecls :: Map Text Ty
@@ -51,7 +51,7 @@ interpretOps ops = do
     let (ea, dat') = runOps ops dat
     put dat'
     case ea of
-        Left e -> throwM e
+        Left e  -> throwM e
         Right a -> pure a
 
 declare :: Text -> Ty -> Ops ()
@@ -82,7 +82,7 @@ define name e = do
             assign (field @"datDefns") defns'
 
 process :: Stmt Text -> Ops ()
-process (Decl name ty) = declare name ty
+process (Decl name ty)  = declare name ty
 process (Defn name exp) = define name exp
 
 typeCheckOps :: Exp Text -> Ops Ty

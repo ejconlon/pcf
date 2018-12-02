@@ -1,10 +1,10 @@
 module Pcf.Printer (emit, repTy, printTy, repExp, printExp, repStmt, printStmt) where
 
-import           Bound.Name        (Name (..))
-import           Data.Text         (Text)
-import qualified Data.Text         as Text
-import           Pcf.Functions     (instantiateAndThen')
-import           Pcf.Types         (Exp (..), SExp (..), Stmt (..), Ty (..))
+import           Bound.Name    (Name (..))
+import           Data.Text     (Text)
+import qualified Data.Text     as Text
+import           Pcf.Functions (instantiateAndThen')
+import           Pcf.Types     (Exp (..), SExp (..), Stmt (..), Ty (..))
 
 emit :: SExp Text -> Text
 emit (SAtom t)  = t
@@ -12,7 +12,7 @@ emit (SList ts) = "(" <> Text.intercalate " " (fmap emit ts) <> ")"
 
 unassoc :: [SExp Text] -> Exp Text -> SExp Text
 unassoc ts (App l r) = unassoc (repExp r : ts) l
-unassoc ts x = SList (repExp x : ts)
+unassoc ts x         = SList (repExp x : ts)
 
 repTy :: Ty -> SExp Text
 repTy Nat       = SAtom "Nat"
@@ -47,7 +47,7 @@ printExp = emit . repExp
 repStmt :: Stmt Text -> SExp Text
 repStmt x = case x of
     Decl n ty -> SList [SAtom "decl", SAtom n, repTy ty]
-    Defn n e -> SList [SAtom "defn", SAtom n, repExp e]
+    Defn n e  -> SList [SAtom "defn", SAtom n, repExp e]
 
 printStmt :: Stmt Text -> Text
 printStmt = emit .repStmt

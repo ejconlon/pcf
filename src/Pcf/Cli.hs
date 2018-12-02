@@ -1,20 +1,21 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Pcf.Cli where
 
-import           Control.Monad            (unless)
-import           Control.Monad.Catch      (MonadThrow(..), MonadCatch(..))
-import           Control.Monad.IO.Class   (MonadIO(..))
-import           Control.Monad.Reader     (MonadReader(..), ReaderT(..))
-import           Control.Monad.State.Strict (MonadState(..))
-import           Control.Monad.Trans      (lift)
-import           Data.Functor             (($>))
-import           Data.IORef               (IORef, newIORef, readIORef, writeIORef)
-import           Data.Text                (Text)
-import qualified Data.Text                as T
-import qualified Data.Text.IO             as TIO
-import qualified System.Console.Haskeline as H
+import           Control.Monad                           (unless)
+import           Control.Monad.Catch                     (MonadCatch (..), MonadThrow (..))
+import           Control.Monad.IO.Class                  (MonadIO (..))
+import           Control.Monad.Reader                    (MonadReader (..), ReaderT (..))
+import           Control.Monad.State.Strict              (MonadState (..))
+import           Control.Monad.Trans                     (lift)
+import           Data.Functor                            (($>))
+import           Data.IORef                              (IORef, newIORef, readIORef,
+                                                          writeIORef)
+import           Data.Text                               (Text)
+import qualified Data.Text                               as T
+import qualified Data.Text.IO                            as TIO
+import qualified System.Console.Haskeline                as H
 import qualified System.Console.Haskeline.MonadException as HE
 
 newtype Cli s a = Cli { unCli :: H.InputT (ReaderT (IORef s) IO) a }
@@ -70,7 +71,7 @@ repl prompt command = loop where
                 | otherwise -> do
                     directive <- H.handleInterrupt (outputNewline $> ReplContinue) (command input)
                     case directive of
-                        ReplQuit -> pure ()
+                        ReplQuit     -> pure ()
                         ReplContinue -> loop
 
 runCli :: Cli s a -> s -> IO (a, s)

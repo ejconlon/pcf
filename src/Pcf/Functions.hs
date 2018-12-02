@@ -1,12 +1,12 @@
 module Pcf.Functions where
 
-import           Bound         (Scope, abstract1, instantiate1)
-import           Bound.Name    (Name (..))
-import           Control.Monad (guard, mzero)
-import           Data.Functor  (($>))
-import           Data.Map.Strict      (Map)
-import qualified Data.Map.Strict      as Map
-import           Data.Text     (Text)
+import           Bound           (Scope, abstract1, instantiate1)
+import           Bound.Name      (Name (..))
+import           Control.Monad   (guard, mzero)
+import           Data.Functor    (($>))
+import           Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
+import           Data.Text       (Text)
 import           Pcf.Types
 
 instantiateAndThen :: (Monad f, Ord a) => a -> w -> Map a w -> Scope () f a -> (Map a w -> f a -> r) -> r

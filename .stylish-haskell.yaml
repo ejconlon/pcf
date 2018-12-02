@@ -27,3 +27,8 @@ steps:
 columns: 94
 
 newline: native
+
+language_extensions:
+  - DataKinds
+  - FlexibleContexts
+  - TypeApplications

@@ -2,21 +2,22 @@
 
 module Pcf.Repl where
 
-import           Control.Concurrent       (threadDelay)
-import           Control.Exception        (Exception, SomeException)
-import           Control.Monad            (forever)
-import           Control.Monad.Catch      (throwM, catch)
-import           Control.Monad.IO.Class   (liftIO)
-import           Control.Monad.State.Strict (MonadState(..))
-import           Data.Functor             (($>))
-import           Data.Text                (Text)
-import           Data.Typeable            (Typeable)
-import           Pcf.Cli                  (Cli, Command, ReplDirective(..), execCli, outputShow, outputStrLn, outputStr, repl)
-import           Pcf.Functions            (bigStepTop, typeCheckTop)
-import           Pcf.Parser               (readExp, sexpParser)
-import           Pcf.Printer              (repExp)
-import           Pcf.Types                (Exp (..), SExp (..))
-import qualified Text.Megaparsec          as MP
+import           Control.Concurrent         (threadDelay)
+import           Control.Exception          (Exception, SomeException)
+import           Control.Monad              (forever)
+import           Control.Monad.Catch        (catch, throwM)
+import           Control.Monad.IO.Class     (liftIO)
+import           Control.Monad.State.Strict (MonadState (..))
+import           Data.Functor               (($>))
+import           Data.Text                  (Text)
+import           Data.Typeable              (Typeable)
+import           Pcf.Cli                    (Cli, Command, ReplDirective (..), execCli,
+                                             outputShow, outputStr, outputStrLn, repl)
+import           Pcf.Functions              (bigStepTop, typeCheckTop)
+import           Pcf.Parser                 (readExp, sexpParser)
+import           Pcf.Printer                (repExp)
+import           Pcf.Types                  (Exp (..), SExp (..))
+import qualified Text.Megaparsec            as MP
 
 data ReplState = ReplState deriving (Eq, Show)
 

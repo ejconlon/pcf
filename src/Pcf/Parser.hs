@@ -85,5 +85,5 @@ readStmt (SAtom t) = empty
 readStmt (SList ts) = go ts where
     go ts = case ts of
         [SAtom "decl", SAtom n, ty] -> Decl n <$> readTy ty
-        [SAtom "defn", SAtom n, e] -> Defn n <$> readExp e
-        _ -> empty
+        [SAtom "defn", SAtom n, e]  -> Defn n <$> readExp e
+        _                           -> empty
