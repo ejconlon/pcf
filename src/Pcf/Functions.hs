@@ -51,10 +51,10 @@ assertTyRaw gen t env e = (== t) <$> typeCheckRaw gen env e >>= guard
 
 typeCheckRaw :: (Monad m, Ord a) => (Text -> m a) -> Map a Ty -> Exp a -> MaybeT m Ty
 typeCheckRaw _ env (Var a) = maybe mzero pure (M.lookup a env)
-typeCheckRaw gen env (App f a) = do
+typeCheckRaw gen env (App f x) = do
     fTy <- typeCheckRaw gen env f
     case fTy of
-        Arr aTy bTy -> assertTyRaw gen aTy env a $> bTy
+        Arr aTy bTy -> assertTyRaw gen aTy env x $> bTy
         _           -> mzero
 typeCheckRaw gen env (Ifz g t e) = do
     assertTyRaw gen Nat env g
@@ -78,30 +78,36 @@ typeCheck env = runIdentity . runMaybeT . typeCheckRaw pure env
 typeCheckTop :: Exp Text -> Maybe Ty
 typeCheckTop = typeCheck M.empty
 
-bigStep :: Map Text (Exp Text) -> Exp Text -> Maybe (Exp Text)
-bigStep env v@(Var a) = maybe mzero (bigStep env) (M.lookup a env)
-bigStep env (App f a) = do
-    fv <- bigStep env f
+bigStepRaw :: (Monad m, Ord a) => (Text -> m a) -> Map a (Exp a) -> Exp a -> MaybeT m (Exp a)
+bigStepRaw gen env (Var a) = maybe mzero (bigStepRaw gen env) (M.lookup a env)
+bigStepRaw gen env (App f x) = do
+    fv <- bigStepRaw gen env f
     case fv of
         Lam (Name n _) _ bind -> do
-            av <- bigStep env a
-            instantiateAndThen n av env bind bigStep
+            a <- lift (gen n)
+            xv <- bigStepRaw gen env x
+            instantiateAndThen a xv env bind (bigStepRaw gen)
         -- TODO (App (Fix ...) ...)
         _ -> mzero
-bigStep env (Ifz g t e) = do
-    iv <- bigStep env g
+bigStepRaw gen env (Ifz g t e) = do
+    iv <- bigStepRaw gen env g
     case iv of
-        Zero -> bigStep env t
+        Zero -> bigStepRaw gen env t
         Suc ev ->
             case e of
-                Lam (Name n _) _ bind -> instantiateAndThen n ev env bind bigStep
+                Lam (Name n _) _ bind -> do
+                    a <- lift (gen n)
+                    instantiateAndThen a ev env bind (bigStepRaw gen)
                 -- TODO Allow Fix
                 _                     -> mzero
         _ -> mzero
-bigStep env v@Lam{} = pure v
-bigStep env v@Fix{} = pure v
-bigStep env v@Zero = pure v
-bigStep env (Suc e) = Suc <$> bigStep env e
+bigStepRaw gen env v@Lam{} = pure v
+bigStepRaw gen env v@Fix{} = pure v
+bigStepRaw gen env v@Zero = pure v
+bigStepRaw gen env (Suc e) = Suc <$> bigStepRaw gen env e
+
+bigStep :: Map Text (Exp Text) -> Exp Text -> Maybe (Exp Text)
+bigStep env = runIdentity . runMaybeT . bigStepRaw pure env
 
 bigStepTop :: Exp Text -> Maybe (Exp Text)
 bigStepTop = bigStep M.empty
