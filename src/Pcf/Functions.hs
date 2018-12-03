@@ -129,26 +129,26 @@ scopeRebind v bind f =
             in (fvs, gbody')
     in process <$> mgbody
 
-closConv :: (Monad m, Eq a) => (Text -> m a) -> Exp a -> m (ExpC a)
-closConv gen (Var a) = pure (VarC a)
-closConv gen (App l r) = AppC <$> closConv gen l <*> closConv gen r
-closConv gen (Ifz g t e) = IfzC <$> closConv gen g <*> closConv gen t <*> closConv gen e
-closConv gen (Suc e) = SucC <$> closConv gen e
-closConv gen Zero = pure ZeroC
-closConv gen (Lam i@(Name n _) ty b) = do
+closConvRaw :: (Monad m, Eq a) => (Text -> m a) -> Exp a -> m (ExpC a)
+closConvRaw gen (Var a) = pure (VarC a)
+closConvRaw gen (App l r) = AppC <$> closConvRaw gen l <*> closConvRaw gen r
+closConvRaw gen (Ifz g t e) = IfzC <$> closConvRaw gen g <*> closConvRaw gen t <*> closConvRaw gen e
+closConvRaw gen (Suc e) = SucC <$> closConvRaw gen e
+closConvRaw gen Zero = pure ZeroC
+closConvRaw gen (Lam i@(Name n _) ty b) = do
     a <- gen n
-    (c, b') <- scopeRebind a b (closConv gen)
+    (c, b') <- scopeRebind a b (closConvRaw gen)
     pure (LamC i ty (VarC <$> c) b')
-closConv gen (Fix i@(Name n _) ty b) = do
+closConvRaw gen (Fix i@(Name n _) ty b) = do
     a <- gen n
-    (c, b') <- scopeRebind a b (closConv gen)
+    (c, b') <- scopeRebind a b (closConvRaw gen)
     pure (FixC i ty (VarC <$> c) b')
 
-closConvText :: Exp Text -> ExpC Text
-closConvText = runIdentity . closConv pure
+closConv :: Exp Text -> ExpC Text
+closConv = runIdentity . closConvRaw pure
 
-bigStepC :: Map Text (ExpC Text) -> ExpC Text -> Maybe (ExpC Text)
-bigStepC = undefined
+-- bigStepC :: Map Text (ExpC Text) -> ExpC Text -> Maybe (ExpC Text)
+-- bigStepC = undefined
 
-bigStepCTop :: ExpC Text -> Maybe (ExpC Text)
-bigStepCTop = bigStepC M.empty
+-- bigStepCTop :: ExpC Text -> Maybe (ExpC Text)
+-- bigStepCTop = bigStepC M.empty
