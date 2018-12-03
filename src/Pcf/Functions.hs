@@ -1,21 +1,21 @@
 module Pcf.Functions where
 
-import           Bound                 (Scope, abstract, abstract1, instantiate1, (>>>=))
-import           Bound.Name            (Name (..))
-import           Control.Monad         (guard, mzero)
-import           Control.Monad.Trans   (lift)
-import           Control.Monad.Trans.Maybe (MaybeT(..))
-import           Data.Foldable         (toList)
-import           Data.Functor          (($>))
-import           Data.Functor.Identity (Identity(..))
-import           Data.List             (foldl')
-import           Data.Map.Strict       (Map)
-import qualified Data.Map.Strict       as M
-import           Data.Set              (Set)
-import qualified Data.Set              as S
-import           Data.Text             (Text)
-import           Data.Vector           (Vector)
-import qualified Data.Vector           as V
+import           Bound                     (Scope, abstract, abstract1, instantiate1, (>>>=))
+import           Bound.Name                (Name (..))
+import           Control.Monad             (guard, mzero)
+import           Control.Monad.Trans       (lift)
+import           Control.Monad.Trans.Maybe (MaybeT (..))
+import           Data.Foldable             (toList)
+import           Data.Functor              (($>))
+import           Data.Functor.Identity     (Identity (..))
+import           Data.List                 (foldl')
+import           Data.Map.Strict           (Map)
+import qualified Data.Map.Strict           as M
+import           Data.Set                  (Set)
+import qualified Data.Set                  as S
+import           Data.Text                 (Text)
+import           Data.Vector               (Vector)
+import qualified Data.Vector               as V
 import           Pcf.Types
 
 -- Scope manipulation
