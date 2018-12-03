@@ -3,6 +3,8 @@ module Pcf.Functions where
 import           Bound                 (Scope, abstract, abstract1, instantiate1, (>>>=))
 import           Bound.Name            (Name (..))
 import           Control.Monad         (guard, mzero)
+import           Control.Monad.Trans   (lift)
+import           Control.Monad.Trans.Maybe (MaybeT(..))
 import           Data.Foldable         (toList)
 import           Data.Functor          (($>))
 import           Data.Functor.Identity (Identity(..))
@@ -44,29 +46,34 @@ instantiateApply v bind f =
     let e = instantiate1 (pure v) bind
     in abstract1 v <$> f e
 
-assertTy :: Ty -> Map Text Ty -> Exp Text -> Maybe ()
-assertTy t env e = (== t) <$> typeCheck env e >>= guard
+assertTyRaw :: (Monad m, Ord a) => (Text -> m a) -> Ty -> Map a Ty -> Exp a -> MaybeT m ()
+assertTyRaw gen t env e = (== t) <$> typeCheckRaw gen env e >>= guard
+
+typeCheckRaw :: (Monad m, Ord a) => (Text -> m a) -> Map a Ty -> Exp a -> MaybeT m Ty
+typeCheckRaw _ env (Var a) = maybe mzero pure (M.lookup a env)
+typeCheckRaw gen env (App f a) = do
+    fTy <- typeCheckRaw gen env f
+    case fTy of
+        Arr aTy bTy -> assertTyRaw gen aTy env a $> bTy
+        _           -> mzero
+typeCheckRaw gen env (Ifz g t e) = do
+    assertTyRaw gen Nat env g
+    tTy <- typeCheckRaw gen env t
+    assertTyRaw gen (Arr Nat tTy) env e
+    pure tTy
+typeCheckRaw gen env (Lam (Name n _) aTy bind) = do
+    a <- lift (gen n)
+    bTy <- instantiateAndThen a aTy env bind (typeCheckRaw gen)
+    pure (Arr aTy bTy)
+typeCheckRaw gen env (Fix (Name n _) ty bind) = do
+    a <- lift (gen n)
+    instantiateAndThen a ty env bind (assertTyRaw gen ty)
+    pure ty
+typeCheckRaw gen env (Suc e) = assertTyRaw gen Nat env e $> Nat
+typeCheckRaw _ _ Zero = pure Nat
 
 typeCheck :: Map Text Ty -> Exp Text -> Maybe Ty
-typeCheck env (Var a) = maybe mzero pure (M.lookup a env)
-typeCheck env (App f a) = do
-    fTy <- typeCheck env f
-    case fTy of
-        Arr aTy bTy -> assertTy aTy env a $> bTy
-        _           -> mzero
-typeCheck env (Ifz g t e) = do
-    assertTy Nat env g
-    tTy <- typeCheck env t
-    assertTy (Arr Nat tTy) env e
-    pure tTy
-typeCheck env (Lam (Name n _) aTy bind) = do
-    bTy <- instantiateAndThen n aTy env bind typeCheck
-    pure (Arr aTy bTy)
-typeCheck env (Fix (Name n _) ty bind) = do
-    instantiateAndThen n ty env bind (assertTy ty)
-    pure ty
-typeCheck env (Suc e) = assertTy Nat env e $> Nat
-typeCheck _ Zero = pure Nat
+typeCheck env = runIdentity . runMaybeT . typeCheckRaw pure env
 
 typeCheckTop :: Exp Text -> Maybe Ty
 typeCheckTop = typeCheck M.empty

@@ -7,9 +7,7 @@ import           Control.Monad.Except       (ExceptT, MonadError (..), runExcept
 import           Control.Monad.State.Strict (MonadState (..), State, gets, runState)
 import           Data.Generics.Product      (field)
 import           Data.Map.Strict            (Map)
-import qualified Data.Map.Strict            as Map
-import           Data.Set                   (Set)
-import qualified Data.Set                   as Set
+import qualified Data.Map.Strict            as M
 import           Data.Text                  (Text)
 import           Data.Typeable              (Typeable)
 import           GHC.Generics               (Generic)
@@ -24,7 +22,7 @@ data OpsData = OpsData
     } deriving (Generic, Eq, Show)
 
 emptyOpsData :: OpsData
-emptyOpsData = OpsData Map.empty Map.empty
+emptyOpsData = OpsData M.empty M.empty
 
 data OpsExc =
       AlreadyDeclared Text
@@ -57,28 +55,28 @@ interpretOps ops = do
 declare :: Text -> Ty -> Ops ()
 declare name ty = do
     decls <- use (field @"decls")
-    if Map.member name decls
+    if M.member name decls
         then throwError (AlreadyDeclared name)
         else pure ()
-    let decls' = Map.insert name ty decls
+    let decls' = M.insert name ty decls
     assign (field @"decls") decls'
     pure ()
 
 define :: Text -> Exp Text -> Ops ()
 define name e = do
     decls <- use (field @"decls")
-    case Map.lookup name decls of
+    case M.lookup name decls of
         Nothing -> throwError (NotDeclared name)
         Just expectedTy -> do
             defns <- use (field @"defns")
-            if Map.member name defns
+            if M.member name defns
                 then throwError (AlreadyDefined name)
                 else pure ()
-            case typeCheck (Map.delete name decls) e of
+            case typeCheck (M.delete name decls) e of
                 Nothing -> throwError (CannotType e)
                 Just actualTy ->
                     unless (actualTy == expectedTy) (throwError (TypeMismatch e expectedTy actualTy))
-            let defns' = Map.insert name e defns
+            let defns' = M.insert name e defns
             assign (field @"defns") defns'
 
 processStmt :: Stmt Text -> Ops ()
