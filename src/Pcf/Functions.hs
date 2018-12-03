@@ -1,14 +1,26 @@
 module Pcf.Functions where
 
-import           Bound           (Scope, abstract1, instantiate1)
-import           Bound.Name      (Name (..))
-import           Control.Monad   (guard, mzero)
-import           Data.Functor    (($>))
+import           Bound                 (Scope, abstract1, instantiate1)
+import           Bound.Name            (Name (..))
+import           Control.Monad         (guard, mzero)
+import           Data.Functor          (($>))
 import           Data.Functor.Identity (Identity)
-import           Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
-import           Data.Text       (Text)
+import           Data.Map.Strict       (Map)
+import qualified Data.Map.Strict       as Map
+import           Data.Text             (Text)
 import           Pcf.Types
+
+lam :: Eq a => Text -> a -> Ty -> Exp a -> Exp a
+lam n a ty b = Lam (Name n ()) ty (abstract1 a b)
+
+lam' :: Text -> Ty -> Exp Text -> Exp Text
+lam' n = lam n n
+
+fix :: Eq a => Text -> a -> Ty -> Exp a -> Exp a
+fix n a ty b = Fix (Name n ()) ty (abstract1 a b)
+
+fix' :: Text -> Ty -> Exp Text -> Exp Text
+fix' n = fix n n
 
 instantiateAndThen :: (Monad f, Ord a) => a -> w -> Map a w -> Scope () f a -> (Map a w -> f a -> r) -> r
 instantiateAndThen v w env bind f =
