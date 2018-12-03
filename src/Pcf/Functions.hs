@@ -5,7 +5,7 @@ import           Bound.Name            (Name (..))
 import           Control.Monad         (guard, mzero)
 import           Data.Foldable         (toList)
 import           Data.Functor          (($>))
-import           Data.Functor.Identity (Identity)
+import           Data.Functor.Identity (Identity(..))
 import           Data.List             (foldl')
 import           Data.Map.Strict       (Map)
 import qualified Data.Map.Strict       as M
@@ -105,27 +105,34 @@ freeVars = S.fromList . toList
 insertOnce :: Eq a => Vector a -> a -> Vector a
 insertOnce vs a = if V.elem a vs then vs else V.snoc vs a
 
-scopeRebind :: (Monad f, Monad g, Foldable g, Eq a) => a -> Scope () f a -> (f a -> g a) -> (Vector a, Scope Int g a)
+scopeRebind :: (Functor m, Monad f, Monad g, Foldable g, Eq a) => a -> Scope () f a -> (f a -> m (g a)) -> m (Vector a, Scope Int g a)
 scopeRebind v bind f =
     let fbody = instantiate1 (pure v) bind
-        gbody = f fbody
-        fvs = foldl' insertOnce V.empty (toList gbody)
-        rebind a = if a == v then Just (V.length fvs) else V.elemIndex a fvs
-        gbody' = abstract rebind gbody
-    in (fvs, gbody')
+        mgbody = f fbody
+        process gbody =
+            let fvs = foldl' insertOnce V.empty (toList gbody)
+                rebind a = if a == v then Just (V.length fvs) else V.elemIndex a fvs
+                gbody' = abstract rebind gbody
+            in (fvs, gbody')
+    in process <$> mgbody
 
-closConv :: Exp Text -> ExpC Text
-closConv (Var a) = VarC a
-closConv (App l r) = AppC (closConv l) (closConv r)
-closConv (Ifz g t e) = IfzC (closConv g) (closConv t) (closConv e)
-closConv (Suc e) = SucC (closConv e)
-closConv Zero = ZeroC
-closConv (Lam i@(Name n _) ty b) =
-    let (c, b') = scopeRebind n b closConv
-    in LamC i ty (VarC <$> c) b'
-closConv (Fix i@(Name n _) ty b) =
-    let (c, b') = scopeRebind n b closConv
-    in FixC i ty (VarC <$> c) b'
+closConv :: (Monad m, Eq a) => (Text -> m a) -> Exp a -> m (ExpC a)
+closConv gen (Var a) = pure (VarC a)
+closConv gen (App l r) = AppC <$> closConv gen l <*> closConv gen r
+closConv gen (Ifz g t e) = IfzC <$> closConv gen g <*> closConv gen t <*> closConv gen e
+closConv gen (Suc e) = SucC <$> closConv gen e
+closConv gen Zero = pure ZeroC
+closConv gen (Lam i@(Name n _) ty b) = do
+    a <- gen n
+    (c, b') <- scopeRebind a b (closConv gen)
+    pure (LamC i ty (VarC <$> c) b')
+closConv gen (Fix i@(Name n _) ty b) = do
+    a <- gen n
+    (c, b') <- scopeRebind a b (closConv gen)
+    pure (FixC i ty (VarC <$> c) b')
+
+closConvText :: Exp Text -> ExpC Text
+closConvText = runIdentity . closConv pure
 
 bigStepC :: Map Text (ExpC Text) -> ExpC Text -> Maybe (ExpC Text)
 bigStepC = undefined
