@@ -4,6 +4,7 @@ module Test.Pcf.SimpleTest where
 
 import Bound               as B
 import Bound.Name          (Name (..))
+import qualified Data.Set as S
 import Pcf.Functions
 import Pcf.Types           (Exp (..), Ty (..))
 import Test.Pcf.Assertions ((@/=))
@@ -25,9 +26,16 @@ lamEq body = do
     lam' "x" Nat (body "x") @?= lam' "y" Nat (body "y")
 
 test_expEq :: TestTree
-test_expEq = testCase "Exp equivalence" $ do
+test_expEq = testCase "exp eq" $ do
     Var 0 @?= Var 0
     Var 0 @/= Var 1
     Nat @?= Nat
     Nat @/= Arr Nat Nat
     lamEq (Suc . Var)
+
+test_freeVars :: TestTree
+test_freeVars = testCase "free vars" $ do
+    freeVars (Var 0) @?= S.singleton 0
+    freeVars (Suc (Var 0)) @?= S.singleton 0
+    freeVars (lam' "x" Nat (Var "x")) @?= S.empty
+    freeVars (lam' "x" Nat (Var "y")) @?= S.singleton "y"
