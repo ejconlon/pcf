@@ -16,6 +16,8 @@ data Ty =
       Arr Ty Ty
     | Nat deriving (Show, Eq)
 
+-- IDEA: Make `Ident n = Name n ()` and propagate through Exp as `Exp n a`
+-- This way you're not forced into Text and can choose to Gen names
 type Ident = Name Text ()
 
 data Exp a =

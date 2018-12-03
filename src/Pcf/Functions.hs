@@ -126,3 +126,9 @@ closConv (Lam i@(Name n _) ty b) =
 closConv (Fix i@(Name n _) ty b) =
     let (c, b') = scopeRebind n b closConv
     in FixC i ty (VarC <$> c) b'
+
+bigStepC :: Map Text (ExpC Text) -> ExpC Text -> Maybe (ExpC Text)
+bigStepC = undefined
+
+bigStepCTop :: ExpC Text -> Maybe (ExpC Text)
+bigStepCTop = bigStepC M.empty
