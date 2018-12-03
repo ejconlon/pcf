@@ -42,14 +42,14 @@ data Stmt a =
     | Defn Text (Exp a)
     deriving (Eq, Show, Functor, Foldable, Traversable)
 
-type Clos a = Vector (ExpC a)
+type ClosC a = Vector (ExpC a)
 
 data ExpC a =
     VarC a
   | AppC (ExpC a) (ExpC a)
   | IfzC (ExpC a) (ExpC a) (ExpC a)
-  | LamC Ident Ty (Clos a) (Scope Int ExpC a)
-  | FixC Ident Ty (Clos a) (Scope Int ExpC a)
+  | LamC Ident Ty (ClosC a) (Scope Int ExpC a)
+  | FixC Ident Ty (ClosC a) (Scope Int ExpC a)
   | SucC (ExpC a)
   | ZeroC
   deriving (Functor, Foldable, Traversable)
@@ -74,16 +74,19 @@ $(deriveShow ''ExpC)
 $(deriveEq1 ''ExpC)
 $(deriveShow1 ''ExpC)
 
+type ClosL a = Vector (ExpL a)
+type AssignL a = Vector (BindL a)
+
 data BindL a =
-      RecL Ident Ty [ExpL a] (Scope Int ExpL a)
-    | NRecL Ident Ty [ExpL a] (Scope Int ExpL a)
+      RecL Ident Ty (ClosL a) (Scope Int ExpL a)
+    | NRecL Ident Ty (ClosL a) (Scope Int ExpL a)
     deriving (Functor, Foldable, Traversable)
 
 data ExpL a =
       VarL a
     | AppL (ExpL a) (ExpL a)
-    | LetL [BindL a] (Scope Int ExpL a)
-    | IfzL (ExpL a) (ExpL a) (Scope () ExpL a)
+    | LetL (AssignL a) (Scope Int ExpL a)
+    | IfzL (ExpL a) (ExpL a) (ExpL a)
     | SucL (ExpL a)
     | ZeroL
     deriving (Functor, Foldable, Traversable)

@@ -1,9 +1,9 @@
 module Pcf.Functions where
 
-import           Bound                     (Scope, abstract, abstract1, instantiate, instantiate1, (>>>=))
+import           Bound                     (Scope (..), Var (B), abstract, abstract1, instantiate, instantiate1, (>>>=))
 import           Bound.Name                (Name (..))
-import           Control.Monad             (guard, mzero)
-import           Control.Monad.Trans       (lift)
+import           Control.Applicative       (Alternative (..))
+import           Control.Monad             (guard)
 import           Control.Monad.Trans.Maybe (MaybeT (..))
 import           Data.Foldable             (toList)
 import           Data.Functor              (($>))
@@ -14,6 +14,7 @@ import qualified Data.Map.Strict           as M
 import           Data.Set                  (Set)
 import qualified Data.Set                  as S
 import           Data.Text                 (Text)
+import           Data.Traversable          (for)
 import           Data.Vector               (Vector)
 import qualified Data.Vector               as V
 import           Pcf.Types
@@ -50,12 +51,15 @@ scopeRebind v bind f =
             in (fvs, gbody')
     in process <$> mgbody
 
-scopeRebindC :: (Monad m, Monad f, Monad g, Foldable g, Eq a) => a -> Vector a -> Scope Int f a -> (f a -> m (g a)) -> m (Scope Int g a)
-scopeRebindC v c bind f = do
+scopeRebindC :: (Functor m, Monad f, Monad g, Foldable g, Eq a) => a -> Vector a -> Scope Int f a -> (f a -> m (g a)) -> m (Scope Int g a)
+scopeRebindC v c bind f =
     let c' = V.snoc c v
         fbody = instantiate (pure . (c' V.!)) bind
-    gbody <- f fbody
-    pure (abstract (flip V.elemIndex c') gbody)
+        mgbody = f fbody
+    in abstract (flip V.elemIndex c') <$> mgbody
+
+boundN :: Applicative f => Int -> Scope Int f a
+boundN = Scope . pure . B
 
 -- Smart constructors
 
@@ -76,30 +80,30 @@ fix' n = fix n n
 freeVars :: Ord a => Exp a -> Set a
 freeVars = S.fromList . toList
 
-assertTyRaw :: (Monad m, Ord a) => (Text -> m a) -> Ty -> Map a Ty -> Exp a -> MaybeT m ()
+assertTyRaw :: (Monad m, Alternative m, Ord a) => (Text -> m a) -> Ty -> Map a Ty -> Exp a -> m ()
 assertTyRaw gen t env e = (== t) <$> typeCheckRaw gen env e >>= guard
 
 assertTy :: Ty -> Map Text Ty -> Exp Text -> Maybe ()
 assertTy t env = runIdentity . runMaybeT . assertTyRaw pure t env
 
-typeCheckRaw :: (Monad m, Ord a) => (Text -> m a) -> Map a Ty -> Exp a -> MaybeT m Ty
-typeCheckRaw _ env (Var a) = maybe mzero pure (M.lookup a env)
+typeCheckRaw :: (Monad m, Alternative m, Ord a) => (Text -> m a) -> Map a Ty -> Exp a -> m Ty
+typeCheckRaw _ env (Var a) = maybe empty pure (M.lookup a env)
 typeCheckRaw gen env (App f x) = do
     fTy <- typeCheckRaw gen env f
     case fTy of
         Arr aTy bTy -> assertTyRaw gen aTy env x $> bTy
-        _           -> mzero
+        _ -> empty
 typeCheckRaw gen env (Ifz g t e) = do
     assertTyRaw gen Nat env g
     tTy <- typeCheckRaw gen env t
     assertTyRaw gen (Arr Nat tTy) env e
     pure tTy
 typeCheckRaw gen env (Lam (Name n _) aTy bind) = do
-    a <- lift (gen n)
+    a <- gen n
     bTy <- instantiateAndThen a aTy env bind (typeCheckRaw gen)
     pure (Arr aTy bTy)
 typeCheckRaw gen env (Fix (Name n _) ty bind) = do
-    a <- lift (gen n)
+    a <- gen n
     instantiateAndThen a ty env bind (assertTyRaw gen ty)
     pure ty
 typeCheckRaw gen env (Suc e) = assertTyRaw gen Nat env e $> Nat
@@ -111,17 +115,17 @@ typeCheck env = runIdentity . runMaybeT . typeCheckRaw pure env
 typeCheckTop :: Exp Text -> Maybe Ty
 typeCheckTop = typeCheck M.empty
 
-bigStepRaw :: (Monad m, Ord a) => (Text -> m a) -> Map a (Exp a) -> Exp a -> MaybeT m (Exp a)
-bigStepRaw gen env (Var a) = maybe mzero (bigStepRaw gen env) (M.lookup a env)
+bigStepRaw :: (Monad m, Alternative m, Ord a) => (Text -> m a) -> Map a (Exp a) -> Exp a -> m (Exp a)
+bigStepRaw gen env (Var a) = maybe empty (bigStepRaw gen env) (M.lookup a env)
 bigStepRaw gen env (App f x) = do
     fv <- bigStepRaw gen env f
     case fv of
         Lam (Name n _) _ bind -> do
-            a <- lift (gen n)
+            a <- gen n
             xv <- bigStepRaw gen env x
             instantiateAndThen a xv env bind (bigStepRaw gen)
         -- TODO (App (Fix ...) ...)
-        _ -> mzero
+        _ -> empty
 bigStepRaw gen env (Ifz g t e) = do
     iv <- bigStepRaw gen env g
     case iv of
@@ -129,11 +133,11 @@ bigStepRaw gen env (Ifz g t e) = do
         Suc ev ->
             case e of
                 Lam (Name n _) _ bind -> do
-                    a <- lift (gen n)
+                    a <- gen n
                     instantiateAndThen a ev env bind (bigStepRaw gen)
                 -- TODO Allow Fix
-                _                     -> mzero
-        _ -> mzero
+                _ -> empty
+        _ -> empty
 bigStepRaw gen env v@Lam{} = pure v
 bigStepRaw gen env v@Fix{} = pure v
 bigStepRaw gen env v@Zero = pure v
@@ -146,11 +150,11 @@ bigStepTop :: Exp Text -> Maybe (Exp Text)
 bigStepTop = bigStep M.empty
 
 closConvRaw :: (Monad m, Eq a) => (Text -> m a) -> Exp a -> m (ExpC a)
-closConvRaw gen (Var a) = pure (VarC a)
+closConvRaw _ (Var a) = pure (VarC a)
 closConvRaw gen (App l r) = AppC <$> closConvRaw gen l <*> closConvRaw gen r
 closConvRaw gen (Ifz g t e) = IfzC <$> closConvRaw gen g <*> closConvRaw gen t <*> closConvRaw gen e
 closConvRaw gen (Suc e) = SucC <$> closConvRaw gen e
-closConvRaw gen Zero = pure ZeroC
+closConvRaw _ Zero = pure ZeroC
 closConvRaw gen (Lam i@(Name n _) ty b) = do
     a <- gen n
     (c, b') <- scopeRebind a b (closConvRaw gen)
@@ -163,8 +167,22 @@ closConvRaw gen (Fix i@(Name n _) ty b) = do
 closConv :: Exp Text -> ExpC Text
 closConv = runIdentity . closConvRaw pure
 
-lambdaLiftRaw :: (Monad m, Eq a) => (Text -> m a) -> ExpC a -> m (ExpL a)
-lambdaLiftRaw = undefined -- TODO fill in
+lambdaLiftRaw :: (Monad m, Alternative m, Eq a) => (Text -> m a) -> ExpC a -> m (ExpL a)
+lambdaLiftRaw _ (VarC a) = pure (VarL a)
+lambdaLiftRaw gen (AppC l r) = AppL <$> lambdaLiftRaw gen l <*> lambdaLiftRaw gen r
+lambdaLiftRaw gen (IfzC g t e) = IfzL <$> lambdaLiftRaw gen g <*> lambdaLiftRaw gen t <*> lambdaLiftRaw gen e
+lambdaLiftRaw gen (SucC e) = SucL <$> lambdaLiftRaw gen e
+lambdaLiftRaw _ ZeroC = pure ZeroL
+lambdaLiftRaw gen (LamC i@(Name n _) ty c b) = do
+    a <- gen n
+    c' <- for c $ \e ->
+        case e of
+            VarC a -> pure a
+            _ -> empty
+    b' <- scopeRebindC a c' b (lambdaLiftRaw gen)
+    let bind = NRecL i ty (VarL <$> c') b'
+    pure (LetL (V.singleton bind) (boundN 0))
+-- TODO fill in Fix
 
-lambdaLift :: ExpC Text -> ExpL Text
-lambdaLift = runIdentity . lambdaLiftRaw pure
+-- lambdaLift :: ExpC Text -> Maybe (ExpL Text)
+-- lambdaLift = runIdentity . runMaybeT . lambdaLiftRaw pure
