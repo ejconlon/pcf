@@ -18,17 +18,7 @@ import           Data.Vector           (Vector)
 import qualified Data.Vector           as V
 import           Pcf.Types
 
-lam :: Eq a => Text -> a -> Ty -> Exp a -> Exp a
-lam n a ty b = Lam (Name n ()) ty (abstract1 a b)
-
-lam' :: Text -> Ty -> Exp Text -> Exp Text
-lam' n = lam n n
-
-fix :: Eq a => Text -> a -> Ty -> Exp a -> Exp a
-fix n a ty b = Fix (Name n ()) ty (abstract1 a b)
-
-fix' :: Text -> Ty -> Exp Text -> Exp Text
-fix' n = fix n n
+-- Scope manipulation
 
 instantiateAndThen :: (Monad f, Ord a) => a -> w -> Map a w -> Scope () f a -> (Map a w -> f a -> r) -> r
 instantiateAndThen v w env bind f =
@@ -46,8 +36,44 @@ instantiateApply v bind f =
     let e = instantiate1 (pure v) bind
     in abstract1 v <$> f e
 
+insertOnce :: Eq a => Vector a -> a -> Vector a
+insertOnce vs a = if V.elem a vs then vs else V.snoc vs a
+
+scopeRebind :: (Functor m, Monad f, Monad g, Foldable g, Eq a) => a -> Scope () f a -> (f a -> m (g a)) -> m (Vector a, Scope Int g a)
+scopeRebind v bind f =
+    let fbody = instantiate1 (pure v) bind
+        mgbody = f fbody
+        process gbody =
+            let fvs = foldl' insertOnce V.empty (toList gbody)
+                rebind a = if a == v then Just (V.length fvs) else V.elemIndex a fvs
+                gbody' = abstract rebind gbody
+            in (fvs, gbody')
+    in process <$> mgbody
+
+-- Smart constructors
+
+lam :: Eq a => Text -> a -> Ty -> Exp a -> Exp a
+lam n a ty b = Lam (Name n ()) ty (abstract1 a b)
+
+lam' :: Text -> Ty -> Exp Text -> Exp Text
+lam' n = lam n n
+
+fix :: Eq a => Text -> a -> Ty -> Exp a -> Exp a
+fix n a ty b = Fix (Name n ()) ty (abstract1 a b)
+
+fix' :: Text -> Ty -> Exp Text -> Exp Text
+fix' n = fix n n
+
+-- Exp manipulation
+
+freeVars :: Ord a => Exp a -> Set a
+freeVars = S.fromList . toList
+
 assertTyRaw :: (Monad m, Ord a) => (Text -> m a) -> Ty -> Map a Ty -> Exp a -> MaybeT m ()
 assertTyRaw gen t env e = (== t) <$> typeCheckRaw gen env e >>= guard
+
+assertTy :: Ty -> Map Text Ty -> Exp Text -> Maybe ()
+assertTy t env = runIdentity . runMaybeT . assertTyRaw pure t env
 
 typeCheckRaw :: (Monad m, Ord a) => (Text -> m a) -> Map a Ty -> Exp a -> MaybeT m Ty
 typeCheckRaw _ env (Var a) = maybe mzero pure (M.lookup a env)
@@ -112,23 +138,6 @@ bigStep env = runIdentity . runMaybeT . bigStepRaw pure env
 bigStepTop :: Exp Text -> Maybe (Exp Text)
 bigStepTop = bigStep M.empty
 
-freeVars :: Ord a => Exp a -> Set a
-freeVars = S.fromList . toList
-
-insertOnce :: Eq a => Vector a -> a -> Vector a
-insertOnce vs a = if V.elem a vs then vs else V.snoc vs a
-
-scopeRebind :: (Functor m, Monad f, Monad g, Foldable g, Eq a) => a -> Scope () f a -> (f a -> m (g a)) -> m (Vector a, Scope Int g a)
-scopeRebind v bind f =
-    let fbody = instantiate1 (pure v) bind
-        mgbody = f fbody
-        process gbody =
-            let fvs = foldl' insertOnce V.empty (toList gbody)
-                rebind a = if a == v then Just (V.length fvs) else V.elemIndex a fvs
-                gbody' = abstract rebind gbody
-            in (fvs, gbody')
-    in process <$> mgbody
-
 closConvRaw :: (Monad m, Eq a) => (Text -> m a) -> Exp a -> m (ExpC a)
 closConvRaw gen (Var a) = pure (VarC a)
 closConvRaw gen (App l r) = AppC <$> closConvRaw gen l <*> closConvRaw gen r
@@ -146,9 +155,3 @@ closConvRaw gen (Fix i@(Name n _) ty b) = do
 
 closConv :: Exp Text -> ExpC Text
 closConv = runIdentity . closConvRaw pure
-
--- bigStepC :: Map Text (ExpC Text) -> ExpC Text -> Maybe (ExpC Text)
--- bigStepC = undefined
-
--- bigStepCTop :: ExpC Text -> Maybe (ExpC Text)
--- bigStepCTop = bigStepC M.empty
