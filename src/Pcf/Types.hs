@@ -28,6 +28,7 @@ data Exp a =
     | Zero
     deriving (Functor, Foldable, Traversable)
 
+-- NOTE equality here should be alpha equivalence
 $(deriveEq ''Exp)
 $(deriveShow ''Exp)
 $(deriveEq1 ''Exp)
@@ -42,8 +43,8 @@ instance Monad Exp where
     Var a >>= f = f a
     (App l r) >>= f = App (l >>= f) (r >>= f)
     (Ifz g t e) >>= f = Ifz (g >>= f) (t >>= f) (e >>= f)
-    (Lam i t b) >>= f = Lam i t (b >>>= f)
-    (Fix i t b) >>= f = Fix i t (b >>>= f)
+    (Lam n t b) >>= f = Lam n t (b >>>= f)
+    (Fix n t b) >>= f = Fix n t (b >>>= f)
     (Suc e) >>= f = Suc (e >>= f)
     Zero >>= _ = Zero
 
@@ -52,14 +53,14 @@ data Stmt a =
     | Defn Text (Exp a)
     deriving (Eq, Show, Functor, Foldable, Traversable)
 
--- type Clos a = Vector (ExpC a)
+-- type Clos = Vector Text
 
 -- data ExpC a =
 --     VarC a
 --   | AppC (ExpC a) (ExpC a)
---   | IfzC (ExpC a) (ExpC a) (NamedScope ExpC a)
---   | LamC Ty (Clos a) (NamedScope ExpC a)
---   | FixC Ty (Clos a) (NamedScope ExpC a)
+--   | IfzC (ExpC a) (ExpC a) (ExpC a)
+--   | LamC Ident Ty Clos (Scope () ExpC a)
+--   | FixC Ident Ty Clos (Scope () ExpC a)
 --   | SucC (ExpC a)
 --   | ZeroC
 --   deriving (Functor, Foldable, Traversable)
@@ -72,12 +73,13 @@ data Stmt a =
 --     return = VarC
 --     VarC a >>= f = f a
 --     (AppC l r) >>= f = AppC (l >>= f) (r >>= f)
---     (IfzC i t e) >>= f = IfzC (i >>= f) (t >>= f) (e >>>= f)
---     (LamC t c b) >>= f = LamC t ((>>= f) <$> c) (b >>>= f)
---     (FixC t c b) >>= f = FixC t ((>>= f) <$> c) (b >>>= f)
+--     (IfzC g t e) >>= f = IfzC (g >>= f) (t >>= f) (e >>= f)
+--     (LamC n t c b) >>= f = LamC n t c (b >>>= f)
+--     (FixC n t c b) >>= f = FixC n t c (b >>>= f)
 --     (SucC e) >>= f = SucC (e >>= f)
 --     ZeroC >>= _ = ZeroC
 
+-- -- NOTE equality here is not alpha-equivalence
 -- $(deriveEq ''ExpC)
 -- $(deriveShow ''ExpC)
 -- $(deriveEq1 ''ExpC)

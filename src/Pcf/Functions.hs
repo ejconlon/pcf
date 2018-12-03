@@ -4,6 +4,7 @@ import           Bound           (Scope, abstract1, instantiate1)
 import           Bound.Name      (Name (..))
 import           Control.Monad   (guard, mzero)
 import           Data.Functor    (($>))
+import           Data.Functor.Identity (Identity)
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import           Data.Text       (Text)
@@ -69,7 +70,7 @@ bigStep env (Ifz i t e) = do
         Suc ev ->
             case e of
                 Lam (Name n _) _ bind -> instantiateAndThen n ev env bind bigStep
-                -- TODO Allow Fix?
+                -- TODO Allow Fix
                 _                     -> mzero
         _ -> mzero
 bigStep env v@Lam{} = pure v
@@ -80,11 +81,23 @@ bigStep env (Suc e) = Suc <$> bigStep env e
 bigStepTop :: Exp Text -> Maybe (Exp Text)
 bigStepTop = bigStep Map.empty
 
--- closConv :: Eq a => Exp a -> Gen a (ExpC a)
+-- newtype VarSet a = VarSet { unVarSet :: Map Text a } deriving (Show)
+
+-- instance Eq Varset where
+--     VarSet m == VarSet n = Map.keysSet m == Map.keysSet n
+
+-- emptyVarSet :: VarSet a
+-- emptyVarSet = VarSet Map.empty
+
+-- freeVars :: VarSet a -> Exp a -> VarSet a
+-- freeVars = runState
+
+-- freeVarsTop :: Exp a -> VarSet a
+-- freeVarsTop = freeVars emptyVarSet
+
+-- closConv :: Eq a => Exp a -> Identity (ExpC a)
 -- closConv (Var a) = pure (VarC a)
 -- closConv (App l r) = AppC <$> closConv l <*> closConv r
--- closConv (Ifz g t n e) = do
---     let e' = instantiateApply n e closConv
---     IfzC <$> closConv g <*> closConv t <*> e'
+-- closConv (Ifz g t e) = IfzC <$> closConv g <*> closConv t <*> closConv e
 -- closConv (Suc e) = SucC <$> closConv e
 -- closConv Zero = pure ZeroC
