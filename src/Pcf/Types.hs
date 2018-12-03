@@ -2,7 +2,7 @@
 
 module Pcf.Types where
 
-import Bound                (Scope, (>>>=), makeBound)
+import Bound                (Scope, makeBound, (>>>=))
 import Bound.Name           (Name)
 import Control.Monad        (ap)
 import Data.Deriving        (deriveEq, deriveEq1, deriveShow, deriveShow1)

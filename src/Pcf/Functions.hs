@@ -1,6 +1,6 @@
 module Pcf.Functions where
 
-import           Bound                 (Scope, (>>>=), abstract, abstract1, instantiate1)
+import           Bound                 (Scope, abstract, abstract1, instantiate1, (>>>=))
 import           Bound.Name            (Name (..))
 import           Control.Monad         (guard, mzero)
 import           Data.Foldable         (toList)
@@ -103,14 +103,14 @@ freeVars :: Ord a => Exp a -> Set a
 freeVars = S.fromList . toList
 
 insertOnce :: Eq a => Vector a -> a -> Vector a
-insertOnce vs a = if (V.elem a vs) then vs else V.snoc vs a
+insertOnce vs a = if V.elem a vs then vs else V.snoc vs a
 
 scopeRebind :: (Monad f, Monad g, Foldable g, Eq a) => a -> Scope () f a -> (f a -> g a) -> (Vector a, Scope Int g a)
 scopeRebind v bind f =
     let fbody = instantiate1 (pure v) bind
         gbody = f fbody
         fvs = foldl' insertOnce V.empty (toList gbody)
-        rebind a = if (a == v) then Just (V.length fvs) else V.elemIndex a fvs
+        rebind a = if a == v then Just (V.length fvs) else V.elemIndex a fvs
         gbody' = abstract rebind gbody
     in (fvs, gbody')
 

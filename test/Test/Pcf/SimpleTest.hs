@@ -2,14 +2,14 @@
 
 module Test.Pcf.SimpleTest where
 
-import Bound               as B
-import Bound.Name          (Name (..))
-import qualified Data.Set as S
-import Pcf.Functions
-import Pcf.Types           (Exp (..), Ty (..))
-import Test.Pcf.Assertions ((@/=))
-import Test.Tasty
-import Test.Tasty.HUnit
+import           Bound               as B
+import           Bound.Name          (Name (..))
+import qualified Data.Set            as S
+import           Pcf.Functions
+import           Pcf.Types           (Exp (..), Ty (..))
+import           Test.Pcf.Assertions ((@/=))
+import           Test.Tasty
+import           Test.Tasty.HUnit
 
 lamEq :: (forall a. a -> Exp a) -> IO ()
 lamEq body = do
