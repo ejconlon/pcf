@@ -1,6 +1,6 @@
 module Pcf.Functions where
 
-import           Bound                     (Scope, abstract, abstract1, instantiate1, (>>>=))
+import           Bound                     (Scope, abstract, abstract1, instantiate, instantiate1, (>>>=))
 import           Bound.Name                (Name (..))
 import           Control.Monad             (guard, mzero)
 import           Control.Monad.Trans       (lift)
@@ -49,6 +49,13 @@ scopeRebind v bind f =
                 gbody' = abstract rebind gbody
             in (fvs, gbody')
     in process <$> mgbody
+
+scopeRebindC :: (Monad m, Monad f, Monad g, Foldable g, Eq a) => a -> Vector a -> Scope Int f a -> (f a -> m (g a)) -> m (Scope Int g a)
+scopeRebindC v c bind f = do
+    let c' = V.snoc c v
+        fbody = instantiate (pure . (c' V.!)) bind
+    gbody <- f fbody
+    pure (abstract (flip V.elemIndex c') gbody)
 
 -- Smart constructors
 
@@ -155,3 +162,9 @@ closConvRaw gen (Fix i@(Name n _) ty b) = do
 
 closConv :: Exp Text -> ExpC Text
 closConv = runIdentity . closConvRaw pure
+
+lambdaLiftRaw :: (Monad m, Eq a) => (Text -> m a) -> ExpC a -> m (ExpL a)
+lambdaLiftRaw = undefined -- TODO fill in
+
+lambdaLift :: ExpC Text -> ExpL Text
+lambdaLift = runIdentity . lambdaLiftRaw pure

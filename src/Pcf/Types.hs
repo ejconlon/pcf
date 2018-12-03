@@ -73,3 +73,35 @@ $(deriveEq ''ExpC)
 $(deriveShow ''ExpC)
 $(deriveEq1 ''ExpC)
 $(deriveShow1 ''ExpC)
+
+data BindL a =
+      RecL Ident Ty [ExpL a] (Scope Int ExpL a)
+    | NRecL Ident Ty [ExpL a] (Scope Int ExpL a)
+    deriving (Functor, Foldable, Traversable)
+
+data ExpL a =
+      VarL a
+    | AppL (ExpL a) (ExpL a)
+    | LetL [BindL a] (Scope Int ExpL a)
+    | IfzL (ExpL a) (ExpL a) (Scope () ExpL a)
+    | SucL (ExpL a)
+    | ZeroL
+    deriving (Functor, Foldable, Traversable)
+
+instance Applicative ExpL where
+    pure = VarL
+    (<*>) = ap
+
+instance Monad ExpL where
+    return = VarL
+    m >>= f = undefined  -- TODO fill this in!
+
+$(deriveEq ''BindL)
+$(deriveShow ''BindL)
+$(deriveEq1 ''BindL)
+$(deriveShow1 ''BindL)
+
+$(deriveEq ''ExpL)
+$(deriveShow ''ExpL)
+$(deriveEq1 ''ExpL)
+$(deriveShow1 ''ExpL)
