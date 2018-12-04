@@ -167,6 +167,12 @@ closConvRaw gen (Fix i@(Name n _) ty b) = do
 closConv :: Exp Text -> ExpC Text
 closConv = runIdentity . closConvRaw pure
 
+varOnlyC :: (Alternative m, Traversable t) => t (ExpC a) -> m (t a)
+varOnlyC = traverse $ \e ->
+    case e of
+        VarC a -> pure a
+        _ -> empty
+
 lambdaLiftRaw :: (Monad m, Alternative m, Eq a) => (Text -> m a) -> ExpC a -> m (ExpL a)
 lambdaLiftRaw _ (VarC a) = pure (VarL a)
 lambdaLiftRaw gen (AppC l r) = AppL <$> lambdaLiftRaw gen l <*> lambdaLiftRaw gen r
@@ -175,14 +181,16 @@ lambdaLiftRaw gen (SucC e) = SucL <$> lambdaLiftRaw gen e
 lambdaLiftRaw _ ZeroC = pure ZeroL
 lambdaLiftRaw gen (LamC i@(Name n _) ty c b) = do
     a <- gen n
-    c' <- for c $ \e ->
-        case e of
-            VarC a -> pure a
-            _ -> empty
+    c' <- varOnlyC c
     b' <- scopeRebindC a c' b (lambdaLiftRaw gen)
     let bind = NRecL i ty (VarL <$> c') b'
     pure (LetL (V.singleton bind) (boundN 0))
--- TODO fill in Fix
+lambdaLiftRaw gen (FixC i@(Name n _) ty c b) = do
+    a <- gen n
+    c' <- varOnlyC c
+    b' <- scopeRebindC a c' b (lambdaLiftRaw gen)
+    let bind = RecL i ty (VarL <$> c') b'
+    pure (LetL (V.singleton bind) (boundN 0))
 
--- lambdaLift :: ExpC Text -> Maybe (ExpL Text)
--- lambdaLift = runIdentity . runMaybeT . lambdaLiftRaw pure
+lambdaLift :: ExpC Text -> Maybe (ExpL Text)
+lambdaLift = runIdentity . runMaybeT . lambdaLiftRaw pure
