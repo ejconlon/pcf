@@ -82,6 +82,10 @@ data BindL a =
     | NRecL Ident Ty (ClosL a) (Scope Int ExpL a)
     deriving (Functor, Foldable, Traversable)
 
+(>>-) :: BindL a -> (a -> ExpL b) -> BindL b
+RecL i ty c b >>- f = RecL i ty ((>>= f) <$> c) (b >>>= f)
+NRecL i ty c b >>- f = NRecL i ty ((>>= f) <$> c) (b >>>= f)
+
 data ExpL a =
       VarL a
     | AppL (ExpL a) (ExpL a)
@@ -97,7 +101,12 @@ instance Applicative ExpL where
 
 instance Monad ExpL where
     return = VarL
-    m >>= f = undefined  -- TODO fill this in!
+    VarL a >>= f = f a
+    (AppL l r) >>= f = AppL (l >>= f) (r >>= f)
+    (IfzL g t e) >>= f = IfzL (g >>= f) (t >>= f) (e >>= f)
+    (SucL e) >>= f = SucL (e >>= f)
+    ZeroL >>= _ = ZeroL
+    LetL a b >>= f = LetL ((>>- f) <$> a) (b >>>= f)
 
 $(deriveEq ''BindL)
 $(deriveShow ''BindL)

@@ -8,22 +8,24 @@ import           Control.Monad.State.Strict (MonadState (..), State, gets, runSt
 import           Data.Generics.Product      (field)
 import           Data.Map.Strict            (Map)
 import qualified Data.Map.Strict            as M
+import           Data.Set                   (Set)
 import           Data.Text                  (Text)
 import           Data.Typeable              (Typeable)
 import           GHC.Generics               (Generic)
-import           Pcf.Functions              (bigStep, typeCheck)
+import           Pcf.Functions              (bigStep, freeVars, closConv, lambdaLift, typeCheck)
 import           Pcf.Parser                 (readExp, readSExp, readStmt)
-import           Pcf.Types                  (Exp (..), SExp (..), Stmt (..), Ty (..))
+import           Pcf.Types                  (Exp, ExpC, ExpL, SExp, Stmt (..), Ty)
 
 data OpsData = OpsData
     { decls :: Map Text Ty
     , defns :: Map Text (Exp Text)
-    -- TODO also include dependencies between decls and between defns
+    -- TODO also include dependencies between decls and between defns?
     } deriving (Generic, Eq, Show)
 
 emptyOpsData :: OpsData
 emptyOpsData = OpsData M.empty M.empty
 
+-- TODO push some of these exceptions down into Functions
 data OpsExc =
       AlreadyDeclared Text
     | NotDeclared Text
@@ -34,6 +36,7 @@ data OpsExc =
     | CannotParseExp (SExp Text)
     | CannotParseStmt (SExp Text)
     | CannotParseSExp Text
+    | CannotLambdaLift (ExpC Text)
     deriving (Generic, Eq, Show, Typeable)
 instance Exception OpsExc
 
@@ -95,6 +98,18 @@ bigStepOps e = do
     defns <- use (field @"defns")
     case bigStep defns e of
         Nothing -> throwError (CannotEval e)
+        Just e' -> pure e'
+
+freeVarsOps :: Exp Text -> Ops (Set Text)
+freeVarsOps = pure . freeVars
+
+closConvOps :: Exp Text -> Ops (ExpC Text)
+closConvOps = pure . closConv
+
+lambdaLiftOps :: ExpC Text -> Ops (ExpL Text)
+lambdaLiftOps e = do
+    case lambdaLift e of
+        Nothing -> throwError (CannotLambdaLift e)
         Just e' -> pure e'
 
 parseSExp :: Text -> Ops (SExp Text)
