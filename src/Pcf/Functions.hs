@@ -1,6 +1,7 @@
 module Pcf.Functions where
 
-import           Bound                     (Scope (..), Var (B), abstract, abstract1, instantiate, instantiate1, (>>>=))
+import           Bound                     (Scope (..), Var (B), abstract, abstract1,
+                                            instantiate, instantiate1, (>>>=))
 import           Bound.Name                (Name (..))
 import           Control.Applicative       (Alternative (..))
 import           Control.Monad             (guard)
@@ -56,7 +57,7 @@ scopeRebindC v c bind f =
     let c' = V.snoc c v
         fbody = instantiate (pure . (c' V.!)) bind
         mgbody = f fbody
-    in abstract (flip V.elemIndex c') <$> mgbody
+    in abstract (`V.elemIndex` c') <$> mgbody
 
 boundN :: Applicative f => Int -> Scope Int f a
 boundN = Scope . pure . B
@@ -92,7 +93,7 @@ typeCheckRaw gen env (App f x) = do
     fTy <- typeCheckRaw gen env f
     case fTy of
         Arr aTy bTy -> assertTyRaw gen aTy env x $> bTy
-        _ -> empty
+        _           -> empty
 typeCheckRaw gen env (Ifz g t e) = do
     assertTyRaw gen Nat env g
     tTy <- typeCheckRaw gen env t
@@ -168,10 +169,9 @@ closConv :: Exp Text -> ExpC Text
 closConv = runIdentity . closConvRaw pure
 
 varOnlyC :: (Alternative m, Traversable t) => t (ExpC a) -> m (t a)
-varOnlyC = traverse $ \e ->
-    case e of
-        VarC a -> pure a
-        _ -> empty
+varOnlyC = traverse $ \case
+    VarC a -> pure a
+    _      -> empty
 
 lambdaLiftRaw :: (Monad m, Alternative m, Eq a) => (Text -> m a) -> ExpC a -> m (ExpL a)
 lambdaLiftRaw _ (VarC a) = pure (VarL a)

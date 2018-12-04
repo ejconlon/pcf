@@ -12,7 +12,8 @@ import           Data.Set                   (Set)
 import           Data.Text                  (Text)
 import           Data.Typeable              (Typeable)
 import           GHC.Generics               (Generic)
-import           Pcf.Functions              (bigStep, freeVars, closConv, lambdaLift, typeCheck)
+import           Pcf.Functions              (bigStep, closConv, freeVars, lambdaLift,
+                                             typeCheck)
 import           Pcf.Parser                 (readExp, readSExp, readStmt)
 import           Pcf.Types                  (Exp, ExpC, ExpL, SExp, Stmt (..), Ty)
 

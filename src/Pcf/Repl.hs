@@ -17,8 +17,9 @@ import           Data.Typeable          (Typeable)
 import           Pcf.Cli                (Cli, Command, ReplDirective (..), execCli,
                                          outputPartsLn, outputShow, outputStr, outputStrLn,
                                          repl)
-import           Pcf.Ops                (OpsData, OpsExc, bigStepOps, clear, closConvOps, emptyOpsData, freeVarsOps,
-                                         interpretOps, lambdaLiftOps, parseExp, parseSExp, parseStmt,
+import           Pcf.Ops                (OpsData, OpsExc, bigStepOps, clear, closConvOps,
+                                         emptyOpsData, freeVarsOps, interpretOps,
+                                         lambdaLiftOps, parseExp, parseSExp, parseStmt,
                                          processStmt, typeCheckOps)
 
 type Repl = Cli OpsData

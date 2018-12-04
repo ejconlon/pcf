@@ -45,6 +45,7 @@ default-extensions:
   - DeriveTraversable
   - FlexibleContexts
   - GeneralizedNewtypeDeriving
+  - LambdaCase
   - OverloadedStrings
   - TypeApplications
 
