@@ -41,14 +41,17 @@ instantiateApply v bind f =
 insertOnce :: Eq a => Vector a -> a -> Vector a
 insertOnce vs a = if V.elem a vs then vs else V.snoc vs a
 
+insertOnceWithout :: Eq a => a -> Vector a -> a -> Vector a
+insertOnceWithout v vs a = if a == v then vs else insertOnce vs a
+
 scopeRebind :: (Functor m, Monad f, Monad g, Foldable g, Eq a) => a -> Scope () f a -> (f a -> m (g a)) -> m (Vector a, Scope Int g a)
 scopeRebind v bind f =
     let fbody = instantiate1 (pure v) bind
         mgbody = f fbody
         process gbody =
-            let fvs = foldl' insertOnce V.empty (toList gbody)
-                rebind a = if a == v then Just (V.length fvs) else V.elemIndex a fvs
-                gbody' = abstract rebind gbody
+            let fvs = foldl' (insertOnceWithout v) V.empty (toList gbody)
+                fvs' = V.snoc fvs v
+                gbody' = abstract (`V.elemIndex` fvs') gbody
             in (fvs, gbody')
     in process <$> mgbody
 
