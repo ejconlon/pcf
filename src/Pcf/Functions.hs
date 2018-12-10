@@ -1,23 +1,25 @@
 module Pcf.Functions where
 
-import           Bound                     (Scope (..), Var (B), abstract, abstract1,
-                                            instantiate, instantiate1, (>>>=))
-import           Bound.Name                (Name (..))
-import           Control.Applicative       (Alternative (..))
-import           Control.Monad             (guard)
-import           Control.Monad.Trans.Maybe (MaybeT (..))
-import           Data.Foldable             (toList)
-import           Data.Functor              (($>))
-import           Data.Functor.Identity     (Identity (..))
-import           Data.List                 (foldl')
-import           Data.Map.Strict           (Map)
-import qualified Data.Map.Strict           as M
-import           Data.Set                  (Set)
-import qualified Data.Set                  as S
-import           Data.Text                 (Text)
-import           Data.Traversable          (for)
-import           Data.Vector               (Vector)
-import qualified Data.Vector               as V
+import           Bound                      (Scope (..), Var (B), abstract, abstract1,
+                                             instantiate, instantiate1, (>>>=))
+import           Bound.Name                 (Name (..))
+import           Control.Applicative        (Alternative (..))
+import           Control.Lens               (assign, use)
+import           Control.Monad              (guard)
+import           Control.Monad.State.Strict (MonadState (..), State, StateT)
+import           Control.Monad.Trans.Maybe  (MaybeT (..))
+import           Data.Foldable              (toList)
+import           Data.Functor               (($>))
+import           Data.Functor.Identity      (Identity (..))
+import           Data.List                  (foldl')
+import           Data.Map.Strict            (Map)
+import qualified Data.Map.Strict            as M
+import           Data.Set                   (Set)
+import qualified Data.Set                   as S
+import           Data.Text                  (Text)
+import           Data.Traversable           (for)
+import           Data.Vector                (Vector)
+import qualified Data.Vector                as V
 import           Pcf.Types
 
 -- Scope manipulation
@@ -55,12 +57,16 @@ scopeRebind v bind f =
             in (fvs, gbody')
     in process <$> mgbody
 
-scopeRebindC :: (Functor m, Monad f, Monad g, Foldable g, Eq a) => a -> Vector a -> Scope Int f a -> (f a -> m (g a)) -> m (Scope Int g a)
-scopeRebindC v c bind f =
-    let c' = V.snoc c v
-        fbody = instantiate (pure . (c' V.!)) bind
+scopeRebindLet :: (Functor m, Monad f, Monad g, Foldable g, Eq a) =>  Vector a -> Scope Int f a -> (f a -> m (g a)) -> m (Scope Int g a)
+scopeRebindLet c' bind f =
+    let fbody = instantiate (pure . (c' V.!)) bind
         mgbody = f fbody
     in abstract (`V.elemIndex` c') <$> mgbody
+
+scopeRebindLam :: (Functor m, Monad f, Monad g, Foldable g, Eq a) => a -> Vector a -> Scope Int f a -> (f a -> m (g a)) -> m (Scope Int g a)
+scopeRebindLam v c bind f =
+    let c' = V.snoc c v
+    in scopeRebindLet c' bind f
 
 boundN :: Applicative f => Int -> Scope Int f a
 boundN = Scope . pure . B
@@ -176,6 +182,10 @@ varOnlyC = traverse $ \case
     VarC a -> pure a
     _      -> empty
 
+nameL :: BindL a -> Text
+nameL (RecL (Name n _) _ _ _) = n
+nameL (NRecL (Name n _) _ _ _) = n
+
 lambdaLiftRaw :: (Monad m, Alternative m, Eq a) => (Text -> m a) -> ExpC a -> m (ExpL a)
 lambdaLiftRaw _ (VarC a) = pure (VarL a)
 lambdaLiftRaw gen (AppC l r) = AppL <$> lambdaLiftRaw gen l <*> lambdaLiftRaw gen r
@@ -185,15 +195,40 @@ lambdaLiftRaw _ ZeroC = pure ZeroL
 lambdaLiftRaw gen (LamC i@(Name n _) ty c b) = do
     a <- gen n
     c' <- varOnlyC c
-    b' <- scopeRebindC a c' b (lambdaLiftRaw gen)
+    b' <- scopeRebindLam a c' b (lambdaLiftRaw gen)
     let bind = NRecL i ty (VarL <$> c') b'
     pure (LetL (V.singleton bind) (boundN 0))
 lambdaLiftRaw gen (FixC i@(Name n _) ty c b) = do
     a <- gen n
     c' <- varOnlyC c
-    b' <- scopeRebindC a c' b (lambdaLiftRaw gen)
+    b' <- scopeRebindLam a c' b (lambdaLiftRaw gen)
     let bind = RecL i ty (VarL <$> c') b'
     pure (LetL (V.singleton bind) (boundN 0))
 
 lambdaLift :: ExpC Text -> Maybe (ExpL Text)
 lambdaLift = runIdentity . runMaybeT . lambdaLiftRaw pure
+
+data FauxState = FauxState deriving (Eq, Show)
+
+emptyFauxState :: FauxState
+emptyFauxState = FauxState
+
+fauxBindLift :: MonadState FauxState m => (FunId -> ClosFC a -> BindFC a) -> ClosL a -> Scope Int ExpL a -> m (BindFC a)
+fauxBindLift mk c b = undefined
+
+fauxBind :: MonadState FauxState m => BindL a -> m (BindFC a)
+fauxBind (NRecL i ty c b) = fauxBindLift (NRecFC i ty) c b
+fauxBind (RecL i ty c b) = fauxBindLift (RecFC i ty) c b
+
+-- TODO maybe don't need gen after all...
+faux :: MonadState FauxState m => ExpL Text -> m (ExpFC Text)
+faux (VarL a) = pure (VarFC a)
+faux (AppL l r) = AppFC <$> faux l <*> faux r
+faux (IfzL g t e) = IfzFC <$> faux g <*> faux t <*> faux e
+faux (SucL e) = SucFC <$> faux e
+faux ZeroL = pure ZeroFC
+faux (LetL xs b) = do
+    xs' <- traverse fauxBind xs
+    let cs = nameL <$> xs
+    b' <- scopeRebindLet cs b faux
+    pure (LetFC xs' b')

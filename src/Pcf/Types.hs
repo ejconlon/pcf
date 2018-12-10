@@ -10,11 +10,17 @@ import Data.Functor.Classes (Eq1 (..), Show1 (..))
 import Data.Text            (Text)
 import Data.Vector          (Vector)
 
+-- SExp
+
 data SExp a = SAtom a | SList [SExp a] deriving (Show, Eq, Functor, Foldable, Traversable)
+
+-- Ty
 
 data Ty =
       Arr Ty Ty
     | Nat deriving (Show, Eq)
+
+-- Exp
 
 -- IDEA: Make `Ident n = Name n ()` and propagate through Exp as `Exp n a`
 -- This way you're not forced into Text and can choose to Gen names
@@ -37,10 +43,14 @@ $(deriveEq1 ''Exp)
 $(deriveShow1 ''Exp)
 $(makeBound ''Exp)
 
+-- Stmt
+
 data Stmt a =
       Decl Text Ty
     | Defn Text (Exp a)
     deriving (Eq, Show, Functor, Foldable, Traversable)
+
+-- ExpC
 
 type ClosC a = Vector (ExpC a)
 
@@ -74,6 +84,8 @@ $(deriveShow ''ExpC)
 $(deriveEq1 ''ExpC)
 $(deriveShow1 ''ExpC)
 
+-- ExpL
+
 type ClosL a = Vector (ExpL a)
 type AssignL a = Vector (BindL a)
 
@@ -82,9 +94,9 @@ data BindL a =
     | NRecL Ident Ty (ClosL a) (Scope Int ExpL a)
     deriving (Functor, Foldable, Traversable)
 
-(>>-) :: BindL a -> (a -> ExpL b) -> BindL b
-RecL i ty c b >>- f = RecL i ty ((>>= f) <$> c) (b >>>= f)
-NRecL i ty c b >>- f = NRecL i ty ((>>= f) <$> c) (b >>>= f)
+flatMapL :: (a -> ExpL b) -> BindL a -> BindL b
+flatMapL f (RecL i ty c b) = RecL i ty ((>>= f) <$> c) (b >>>= f)
+flatMapL f (NRecL i ty c b) = NRecL i ty ((>>= f) <$> c) (b >>>= f)
 
 data ExpL a =
       VarL a
@@ -106,7 +118,7 @@ instance Monad ExpL where
     (IfzL g t e) >>= f = IfzL (g >>= f) (t >>= f) (e >>= f)
     (SucL e) >>= f = SucL (e >>= f)
     ZeroL >>= _ = ZeroL
-    LetL a b >>= f = LetL ((>>- f) <$> a) (b >>>= f)
+    LetL a b >>= f = LetL ((flatMapL f) <$> a) (b >>>= f)
 
 $(deriveEq ''BindL)
 $(deriveShow ''BindL)
@@ -117,3 +129,48 @@ $(deriveEq ''ExpL)
 $(deriveShow ''ExpL)
 $(deriveEq1 ''ExpL)
 $(deriveShow1 ''ExpL)
+
+-- FauxC
+
+newtype FunId = FunId { unFunId :: Int } deriving (Eq, Show)
+newtype Arity = Arity { unArity :: Int } deriving (Eq, Show, Num)
+type ClosFC a = Vector (ExpFC a)
+type AssignFC a = Vector (BindFC a)
+
+data ExpFCTop a = ExpFCTop FunId Arity (Scope Int ExpC a) deriving (Functor, Foldable, Traversable)
+
+data BindFC a =
+      RecFC Ident Ty FunId (ClosFC a)
+    | NRecFC Ident Ty FunId (ClosFC a)
+    deriving (Functor, Foldable, Traversable)
+
+flatMapFC :: (a -> ExpFC b) -> BindFC a -> BindFC b
+flatMapFC f (RecFC i ty z c) = RecFC i ty z ((>>= f) <$> c)
+flatMapFC f (NRecFC i ty z c) = NRecFC i ty z ((>>= f) <$> c)
+
+data ExpFC a =
+      VarFC a
+    | AppFC (ExpFC a) (ExpFC a)
+    | IfzFC (ExpFC a) (ExpFC a) (ExpFC a)
+    | LetFC (AssignFC a) (Scope Int ExpFC a)
+    | SucFC (ExpFC a)
+    | ZeroFC
+    deriving (Functor, Foldable, Traversable)
+
+instance Applicative ExpFC where
+    pure = VarFC
+    (<*>) = ap
+
+instance Monad ExpFC where
+    return = VarFC
+    (>>=) = undefined
+
+$(deriveEq ''BindFC)
+$(deriveShow ''BindFC)
+$(deriveEq1 ''BindFC)
+$(deriveShow1 ''BindFC)
+
+$(deriveEq ''ExpFC)
+$(deriveShow ''ExpFC)
+$(deriveEq1 ''ExpFC)
+$(deriveShow1 ''ExpFC)
