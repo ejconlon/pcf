@@ -12,10 +12,10 @@ import           Data.Set                   (Set)
 import           Data.Text                  (Text)
 import           Data.Typeable              (Typeable)
 import           GHC.Generics               (Generic)
-import           Pcf.Functions              (bigStep, closConv, freeVars, lambdaLift,
+import           Pcf.Functions              (FauxState, bigStep, closConv, emptyFauxState, faux, freeVars, lambdaLift,
                                              typeCheck)
 import           Pcf.Parser                 (readExp, readSExp, readStmt)
-import           Pcf.Types                  (Exp, ExpC, ExpL, SExp, Stmt (..), Ty)
+import           Pcf.Types                  (Exp, ExpC, ExpFC, ExpL, SExp, Stmt (..), Ty)
 
 data OpsData = OpsData
     { decls :: Map Text Ty
@@ -108,10 +108,13 @@ closConvOps :: Exp Text -> Ops (ExpC Text)
 closConvOps = pure . closConv
 
 lambdaLiftOps :: ExpC Text -> Ops (ExpL Text)
-lambdaLiftOps e = do
-    case lambdaLift e of
-        Nothing -> throwError (CannotLambdaLift e)
-        Just e' -> pure e'
+lambdaLiftOps ec = do
+    case lambdaLift ec of
+        Nothing -> throwError (CannotLambdaLift ec)
+        Just el -> pure el
+
+fauxOps :: ExpL Text -> Ops (ExpFC Text, FauxState)
+fauxOps el = pure (runState (faux el) emptyFauxState)
 
 parseSExp :: Text -> Ops (SExp Text)
 parseSExp input = maybe (throwError (CannotParseSExp input)) pure (readSExp input)

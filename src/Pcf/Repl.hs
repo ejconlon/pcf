@@ -17,10 +17,7 @@ import           Data.Typeable          (Typeable)
 import           Pcf.Cli                (Cli, Command, ReplDirective (..), execCli,
                                          outputPartsLn, outputShow, outputStr, outputStrLn,
                                          repl)
-import           Pcf.Ops                (OpsData, OpsExc, bigStepOps, clear, closConvOps,
-                                         emptyOpsData, freeVarsOps, interpretOps,
-                                         lambdaLiftOps, parseExp, parseSExp, parseStmt,
-                                         processStmt, typeCheckOps)
+import           Pcf.Ops
 
 type Repl = Cli OpsData
 type ReplCommand = Command OpsData
@@ -70,6 +67,11 @@ evalCommand input = do
     el <- interpretOps (lambdaLiftOps ec)
     outputStr "Lambda lift: "
     outputShow el
+    (ef, fs) <- interpretOps (fauxOps el)
+    outputStr "Faux C: "
+    outputShow ef
+    outputStr "Faux State: "
+    outputShow fs
     ty <- interpretOps (typeCheckOps e)
     outputStr "Type: "
     outputShow ty
