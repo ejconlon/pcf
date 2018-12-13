@@ -6,10 +6,10 @@ import           Bound                      (Scope (..), Var (B), abstract, abst
                                              instantiate, instantiate1, (>>>=))
 import           Bound.Name                 (Name (..))
 import           Control.Applicative        (Alternative (..))
-import           Control.Lens               (Lens', assign, over, use)
+import           Control.Lens               (Lens', assign, over, use, view)
 import           Control.Monad              (unless)
 import           Control.Monad.Except       (ExceptT, MonadError (..), runExceptT)
-import           Control.Monad.Reader       (MonadReader (..), ReaderT, asks, runReaderT)
+import           Control.Monad.Reader       (MonadReader (..), ReaderT, runReaderT)
 import           Control.Monad.State.Strict (MonadState (..), StateT, modify, runStateT)
 import           Control.Monad.Trans        (MonadTrans (..))
 import           Data.Foldable              (toList)
@@ -27,11 +27,6 @@ import qualified Data.Vector                as V
 import           Data.Void                  (Void)
 import           GHC.Generics               (Generic)
 import           Pcf.Types
-
--- Utils
-
--- asks2 :: MonadReader a m => (a -> b) -> (a -> c) -> m (b, c)
--- asks2 fb fc = (\a -> (fb a, fc a)) <$> ask
 
 -- Scope manipulation
 
@@ -138,7 +133,7 @@ assertTy t e = do
 
 typeCheck :: (Monad m, Ord a) => Exp a -> TypeT a m Ty
 typeCheck (Var a) = do
-    tyMap <- asks teTyMap
+    tyMap <- view (field @"teTyMap")
     maybe (throwError (TypeMissingVarError a)) pure (M.lookup a tyMap)
 typeCheck (App f x) = do
     fTy <- typeCheck f
@@ -151,12 +146,12 @@ typeCheck (Ifz g t e) = do
     assertTy (Arr Nat tTy) e
     pure tTy
 typeCheck (Lam (Name n _) aTy bind) = do
-    gen <- asks teGen
+    gen <- view (field @"teGen")
     a <- lift (gen n)
     bTy <- instantiateAndThen (field @"teTyMap") a aTy bind typeCheck
     pure (Arr aTy bTy)
 typeCheck (Fix (Name n _) ty bind) = do
-    gen <- asks teGen
+    gen <- view (field @"teGen")
     a <- lift (gen n)
     instantiateAndThen (field @"teTyMap") a ty bind (assertTy ty)
     pure ty
@@ -181,13 +176,13 @@ type EvalT a m = FuncT (EvalEnv m a) () (EvalError a) m
 
 bigStep :: (Monad m, Ord a) => Exp a -> EvalT a m (Exp a)
 bigStep (Var a) = do
-    expMap <- asks eeExpMap
+    expMap <- view (field @"eeExpMap")
     maybe (throwError (EvalMissingVarError a)) bigStep (M.lookup a expMap)
 bigStep (App f x) = do
     fv <- bigStep f
     case fv of
         Lam (Name n _) _ bind -> do
-            gen <- asks eeGen
+            gen <- view (field @"eeGen")
             a <- lift (gen n)
             xv <- bigStep x
             instantiateAndThen (field @"eeExpMap") a xv bind bigStep
@@ -201,7 +196,7 @@ bigStep (Ifz g t e) = do
             -- TODO need to evaluate e before pattern matching
             case e of
                 Lam (Name n _) _ bind -> do
-                    gen <- asks eeGen
+                    gen <- view (field @"eeGen")
                     a <- lift (gen n)
                     instantiateAndThen (field @"eeExpMap") a ev bind bigStep
                 -- TODO Allow Fix Lam too
@@ -227,12 +222,12 @@ closConv (Ifz g t e) = IfzC <$> closConv g <*> closConv t <*> closConv e
 closConv (Suc e) = SucC <$> closConv e
 closConv Zero = pure ZeroC
 closConv (Lam i@(Name n _) ty b) = do
-    gen <- asks ceGen
+    gen <- view (field @"ceGen")
     a <- lift (gen n)
     (c, b') <- scopeRebind a b closConv
     pure (LamC i ty (VarC <$> c) b')
 closConv (Fix i@(Name n _) ty b) = do
-    gen <- asks ceGen
+    gen <- view (field @"ceGen")
     a <- lift (gen n)
     (c, b') <- scopeRebind a b closConv
     pure (FixC i ty (VarC <$> c) b')
@@ -261,14 +256,14 @@ lambdaLift (IfzC g t e) = IfzL <$> lambdaLift g <*> lambdaLift t <*> lambdaLift 
 lambdaLift (SucC e) = SucL <$> lambdaLift e
 lambdaLift ZeroC = pure ZeroL
 lambdaLift (LamC i@(Name n _) ty c b) = do
-    gen <- asks lleGen
+    gen <- view (field @"lleGen")
     a <- lift (gen n)
     c' <- varOnlyC c
     b' <- scopeRebindLam a c' b lambdaLift
     let bind = NRecL i ty (VarL <$> c') b'
     pure (LetL (V.singleton bind) (boundN 0))
 lambdaLift (FixC i@(Name n _) ty c b) = do
-    gen <- asks lleGen
+    gen <- view (field @"lleGen")
     a <- lift (gen n)
     c' <- varOnlyC c
     b' <- scopeRebindLam a c' b lambdaLift
