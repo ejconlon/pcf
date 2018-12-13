@@ -2,23 +2,22 @@
 
 module Pcf.Repl where
 
-import           Control.Concurrent     (threadDelay)
-import           Control.Exception      (Exception, SomeException)
-import           Control.Monad          (forever, unless)
-import           Control.Monad.Catch    (catch, throwM)
-import           Control.Monad.IO.Class (liftIO)
+import           Control.Concurrent         (threadDelay)
+import           Control.Exception          (Exception, SomeException)
+import           Control.Monad              (forever, unless)
+import           Control.Monad.Catch        (catch, throwM)
+import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.State.Strict (get, put)
-import           Data.Foldable          (for_)
-import           Data.Functor           (($>))
-import           Data.Map.Strict        (Map)
-import qualified Data.Map.Strict        as Map
-import           Data.Text              (Text)
-import qualified Data.Text              as Text
-import           Data.Typeable          (Typeable)
-import           Pcf.Cli                (Cli, Command, ReplDirective (..), execCli,
-                                         outputPartsLn, outputPretty, outputStrLn,
-                                         repl)
-import           Pcf.Functions          (emptyFauxState)
+import           Data.Foldable              (for_)
+import           Data.Functor               (($>))
+import           Data.Map.Strict            (Map)
+import qualified Data.Map.Strict            as Map
+import           Data.Text                  (Text)
+import qualified Data.Text                  as Text
+import           Data.Typeable              (Typeable)
+import           Pcf.Cli                    (Cli, Command, ReplDirective (..), execCli,
+                                             outputPartsLn, outputPretty, outputStrLn, repl)
+import           Pcf.Functions              (emptyFauxState)
 import           Pcf.Ops
 
 type Repl = Cli OpsData

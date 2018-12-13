@@ -8,7 +8,7 @@ import           Bound.Name                 (Name (..))
 import           Control.Applicative        (Alternative (..))
 import           Control.Lens               (Lens', assign, over, use)
 import           Control.Monad              (unless)
-import           Control.Monad.Except       (MonadError (..), ExceptT, runExceptT)
+import           Control.Monad.Except       (ExceptT, MonadError (..), runExceptT)
 import           Control.Monad.Reader       (MonadReader (..), ReaderT, asks, runReaderT)
 import           Control.Monad.State.Strict (MonadState (..), StateT, modify, runStateT)
 import           Control.Monad.Trans        (MonadTrans (..))
@@ -125,7 +125,7 @@ data TypeError a =
     deriving (Eq, Show)
 
 data TypeEnv m a = TypeEnv
-    { teGen :: VarGen m a
+    { teGen   :: VarGen m a
     , teTyMap :: Map a Ty
     } deriving (Generic)
 
@@ -173,7 +173,7 @@ data EvalError a =
     deriving (Eq, Show)
 
 data EvalEnv m a = EvalEnv
-    { eeGen :: VarGen m a
+    { eeGen    :: VarGen m a
     , eeExpMap :: Map a (Exp a)
     } deriving (Generic)
 
@@ -283,7 +283,7 @@ data FauxError a =
 
 data FauxState a = FauxState
     { fsNextFunId :: FunId
-    , fsTops :: Vector (ExpFCTop a)
+    , fsTops      :: Vector (ExpFCTop a)
     } deriving (Eq, Show)
 
 emptyFauxState :: FauxState a
@@ -313,7 +313,7 @@ varOnlyL = traverse $ \case
     e      -> throwError (NonVarBoundLError e)
 
 nameL :: BindL a -> Text
-nameL (RecL (Name n _) _ _ _) = n
+nameL (RecL (Name n _) _ _ _)  = n
 nameL (NRecL (Name n _) _ _ _) = n
 
 fauxBindLift :: Monad m => (FunId -> ClosFC Text -> BindFC Text) -> Text -> ClosL Text -> Scope Int ExpL Text -> FauxT Text m (BindFC Text)
@@ -326,7 +326,7 @@ fauxBindLift mk n c b = do
 
 fauxBind :: Monad m => BindL Text -> FauxT Text m (BindFC Text)
 fauxBind (NRecL i@(Name n _) ty c b) = fauxBindLift (NRecFC i ty) n c b
-fauxBind (RecL i@(Name n _) ty c b) = fauxBindLift (RecFC i ty) n c b
+fauxBind (RecL i@(Name n _) ty c b)  = fauxBindLift (RecFC i ty) n c b
 
 faux :: Monad m => ExpL Text -> FauxT Text m (ExpFC Text)
 faux (VarL a) = pure (VarFC a)

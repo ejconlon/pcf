@@ -95,7 +95,7 @@ data BindL a =
     deriving (Functor, Foldable, Traversable)
 
 flatMapL :: (a -> ExpL b) -> BindL a -> BindL b
-flatMapL f (RecL i ty c b) = RecL i ty ((>>= f) <$> c) (b >>>= f)
+flatMapL f (RecL i ty c b)  = RecL i ty ((>>= f) <$> c) (b >>>= f)
 flatMapL f (NRecL i ty c b) = NRecL i ty ((>>= f) <$> c) (b >>>= f)
 
 data ExpL a =
@@ -151,7 +151,7 @@ data BindFC a =
     deriving (Functor, Foldable, Traversable)
 
 flatMapFC :: (a -> ExpFC b) -> BindFC a -> BindFC b
-flatMapFC f (RecFC i ty z c) = RecFC i ty z ((>>= f) <$> c)
+flatMapFC f (RecFC i ty z c)  = RecFC i ty z ((>>= f) <$> c)
 flatMapFC f (NRecFC i ty z c) = NRecFC i ty z ((>>= f) <$> c)
 
 data ExpFC a =

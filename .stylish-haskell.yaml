@@ -30,6 +30,7 @@ newline: native
 
 language_extensions:
   - DataKinds
+  - ExplicitForAll
   - FlexibleContexts
   - LambdaCase
   - TypeApplications
