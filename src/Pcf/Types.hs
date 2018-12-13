@@ -132,12 +132,18 @@ $(deriveShow1 ''ExpL)
 
 -- FauxC
 
-newtype FunId = FunId { unFunId :: Int } deriving (Eq, Show)
+newtype FunId = FunId { unFunId :: Int } deriving (Eq, Show, Enum)
+instance Bounded FunId where
+    minBound = FunId 0
+    maxBound = FunId maxBound
+
 newtype Arity = Arity { unArity :: Int } deriving (Eq, Show, Num)
+
 type ClosFC a = Vector (ExpFC a)
 type AssignFC a = Vector (BindFC a)
+type TopFC a = Vector (ExpFCTop a)
 
-data ExpFCTop a = ExpFCTop FunId Arity (Scope Int ExpC a) deriving (Functor, Foldable, Traversable)
+data ExpFCTop a = ExpFCTop FunId Arity (Scope Int ExpFC a) deriving (Functor, Foldable, Traversable)
 
 data BindFC a =
       RecFC Ident Ty FunId (ClosFC a)
@@ -163,7 +169,17 @@ instance Applicative ExpFC where
 
 instance Monad ExpFC where
     return = VarFC
-    (>>=) = undefined
+    VarFC a >>= f = f a
+    (AppFC l r) >>= f = AppFC (l >>= f) (r >>= f)
+    (IfzFC g t e) >>= f = IfzFC (g >>= f) (t >>= f) (e >>= f)
+    (SucFC e) >>= f = SucFC (e >>= f)
+    ZeroFC >>= _ = ZeroFC
+    LetFC a b >>= f = LetFC ((flatMapFC f) <$> a) (b >>>= f)
+
+$(deriveEq ''ExpFCTop)
+$(deriveShow ''ExpFCTop)
+$(deriveEq1 ''ExpFCTop)
+$(deriveShow1 ''ExpFCTop)
 
 $(deriveEq ''BindFC)
 $(deriveShow ''BindFC)

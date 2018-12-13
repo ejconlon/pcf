@@ -20,10 +20,9 @@ dependencies:
 - generic-lens
 - haskeline
 - lens
-# - lens-family-core
 - megaparsec
-# - monad-gen
 - mtl
+- pretty-simple
 - text
 - transformers
 - vector
@@ -38,6 +37,7 @@ dependencies:
 
 default-extensions:
   - BangPatterns
+  - ConstraintKinds
   - DataKinds
   - DeriveFunctor
   - DeriveFoldable

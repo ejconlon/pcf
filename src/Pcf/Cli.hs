@@ -17,6 +17,7 @@ import qualified Data.Text                               as T
 import qualified Data.Text.IO                            as TIO
 import qualified System.Console.Haskeline                as H
 import qualified System.Console.Haskeline.MonadException as HE
+import Text.Pretty.Simple (pPrint)
 
 newtype Cli s a = Cli { unCli :: H.InputT (ReaderT (IORef s) IO) a }
     deriving (Functor, Applicative, Monad, MonadIO, HE.MonadException)
@@ -54,6 +55,9 @@ outputPartsLn xs = outputParts xs >> outputStrLn ""
 
 outputShow :: Show a => a -> Cli s ()
 outputShow = liftIO . print
+
+outputPretty :: Show a => a -> Cli s ()
+outputPretty = pPrint
 
 data ReplDirective = ReplQuit | ReplContinue deriving (Eq, Show)
 
