@@ -118,7 +118,7 @@ instance Monad ExpL where
     (IfzL g t e) >>= f = IfzL (g >>= f) (t >>= f) (e >>= f)
     (SucL e) >>= f = SucL (e >>= f)
     ZeroL >>= _ = ZeroL
-    LetL a b >>= f = LetL ((flatMapL f) <$> a) (b >>>= f)
+    LetL a b >>= f = LetL (flatMapL f <$> a) (b >>>= f)
 
 $(deriveEq ''BindL)
 $(deriveShow ''BindL)
@@ -174,7 +174,7 @@ instance Monad ExpFC where
     (IfzFC g t e) >>= f = IfzFC (g >>= f) (t >>= f) (e >>= f)
     (SucFC e) >>= f = SucFC (e >>= f)
     ZeroFC >>= _ = ZeroFC
-    LetFC a b >>= f = LetFC ((flatMapFC f) <$> a) (b >>>= f)
+    LetFC a b >>= f = LetFC (flatMapFC f <$> a) (b >>>= f)
 
 $(deriveEq ''ExpFCTop)
 $(deriveShow ''ExpFCTop)

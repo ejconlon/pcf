@@ -17,7 +17,7 @@ import qualified Data.Text                               as T
 import qualified Data.Text.IO                            as TIO
 import qualified System.Console.Haskeline                as H
 import qualified System.Console.Haskeline.MonadException as HE
-import Text.Pretty.Simple (pPrint)
+import           Text.Pretty.Simple                      (pPrint)
 
 newtype Cli s a = Cli { unCli :: H.InputT (ReaderT (IORef s) IO) a }
     deriving (Functor, Applicative, Monad, MonadIO, HE.MonadException)

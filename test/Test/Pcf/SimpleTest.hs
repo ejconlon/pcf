@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE Rank2Types     #-}
 
 module Test.Pcf.SimpleTest where
 
@@ -39,8 +39,3 @@ test_freeVars = testCase "free vars" $ do
     freeVars (Suc (Var 0)) @?= S.singleton 0
     freeVars (lam' "x" Nat (Var "x")) @?= S.empty
     freeVars (lam' "x" Nat (Var "y")) @?= S.singleton "y"
-
--- conv :: Text -> Either ConvError (FauxC Text, FauxState Text)
-
--- test_conv :: TestTree
--- test_conv = testCase "conv" $ do
