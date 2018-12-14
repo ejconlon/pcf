@@ -2,13 +2,13 @@
 
 module Pcf.Sub where
 
-import Control.Monad (ap)
-import Data.Bifoldable (Bifoldable (..))
-import Data.Bifunctor (Bifunctor (..))
-import Data.Bitraversable (Bitraversable (..))
-import Data.Text (Text)
-import Data.Vector (Vector)
-import qualified Data.Vector as V
+import           Control.Monad      (ap)
+import           Data.Bifoldable    (Bifoldable (..))
+import           Data.Bifunctor     (Bifunctor (..))
+import           Data.Bitraversable (Bitraversable (..))
+import           Data.Text          (Text)
+import           Data.Vector        (Vector)
+import qualified Data.Vector        as V
 
 data UnderScope f e a =
       ScopeB Int
@@ -18,22 +18,22 @@ data UnderScope f e a =
     deriving (Eq, Show)
 
 instance Functor f => Bifunctor (UnderScope f) where
-    bimap _ _ (ScopeB b) = ScopeB b
-    bimap _ g (ScopeF a) = ScopeF (g a)
+    bimap _ _ (ScopeB b)   = ScopeB b
+    bimap _ g (ScopeF a)   = ScopeF (g a)
     bimap f _ (ScopeA i e) = ScopeA i (f e)
-    bimap f _ (ScopeE fe) = ScopeE (f <$> fe)
+    bimap f _ (ScopeE fe)  = ScopeE (f <$> fe)
 
 instance Foldable f => Bifoldable (UnderScope f) where
-    bifoldr _ _ z (ScopeB _) = z
-    bifoldr _ g z (ScopeF a) = g a z
+    bifoldr _ _ z (ScopeB _)   = z
+    bifoldr _ g z (ScopeF a)   = g a z
     bifoldr f _ z (ScopeA _ e) = f e z
-    bifoldr f _ z (ScopeE fe) = foldr f z fe
+    bifoldr f _ z (ScopeE fe)  = foldr f z fe
 
 instance Traversable f => Bitraversable (UnderScope f) where
-    bitraverse _ _ (ScopeB b) = pure (ScopeB b)
-    bitraverse _ g (ScopeF a) = ScopeF <$> g a
+    bitraverse _ _ (ScopeB b)   = pure (ScopeB b)
+    bitraverse _ g (ScopeF a)   = ScopeF <$> g a
     bitraverse f _ (ScopeA i e) = ScopeA i <$> f e
-    bitraverse f _ (ScopeE fe) = ScopeE <$> traverse f fe
+    bitraverse f _ (ScopeE fe)  = ScopeE <$> traverse f fe
 
 newtype Scope f a = Scope { unScope :: UnderScope f (Scope f a) a }
 
@@ -66,10 +66,10 @@ instance Functor f => Monad (Scope f) where
     return = pure
     Scope us >>= f =
         case us of
-            ScopeB b -> Scope (ScopeB b)
-            ScopeF a -> f a
+            ScopeB b   -> Scope (ScopeB b)
+            ScopeF a   -> f a
             ScopeA i e -> e >>= f
-            ScopeE fe -> Scope (ScopeE ((>>= f) <$> fe))
+            ScopeE fe  -> Scope (ScopeE ((>>= f) <$> fe))
 
 abstractScope :: (Functor f, Eq a) => Int -> Vector a -> Scope f a -> Scope f a
 abstractScope num ks s =
@@ -78,7 +78,7 @@ abstractScope num ks s =
         ScopeF a ->
             case V.elemIndex a ks of
                 Nothing -> s
-                Just b -> Scope (ScopeB (num + b))
+                Just b  -> Scope (ScopeB (num + b))
         ScopeA nb s' -> let num' = num + nb in Scope (ScopeA num' (abstractScope num' ks s'))
         ScopeE fs -> Scope (ScopeE (abstractScope num ks <$> fs))
 
