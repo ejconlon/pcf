@@ -1,7 +1,9 @@
 module Test.Pcf.SubTest where
 
+import           Control.Monad.Identity (Identity(..))
+import           Data.Vector            as V
 import           Pcf.Sub
-import           Test.Pcf.Assertions ((@/=))
+import           Test.Pcf.Assertions    ((@/=))
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
@@ -17,50 +19,62 @@ data ExpF n a =
 
 type Exp n a = Scope (ExpF n) a
 
--- Smart constructors for Exp
-
-var :: a -> Exp n a
-var = pure
-
 lam' :: Eq a => n -> a -> Exp n a -> Exp n a
 lam' n a = wrapScope . Lam (Name n ()) . abstract1 a
 
 lam :: Eq n => n -> Exp n n -> Exp n n
 lam n = lam' n n
 
-app :: Exp n a -> Exp n a -> Exp n a
-app l r = wrapScope (App l r)
+-- Test gen
 
-ifz :: Exp n a -> Exp n a -> Exp n a -> Exp n a
-ifz g t e = wrapScope (Ifz g t e)
+type LamCtor f a = a -> Scope f a -> Scope f a
 
-zero :: Exp n a
-zero = wrapScope Zero
+bareLamCtor :: Eq a => LamCtor Identity a
+bareLamCtor a = wrapScope . Identity . abstract1 a
 
-suc :: Exp n a -> Exp n a
-suc = wrapScope  . Suc
+expLamCtor :: Eq a => LamCtor (ExpF a) a
+expLamCtor = lam
 
--- Example terms
+makeTests :: (Functor f, Foldable f, Eq (f (Scope f Char)), Show (f (Scope f Char))) => String -> LamCtor f Char -> TestTree
+makeTests name lamb =
+    let bid = lamb 'x' (pure 'x')
+        bconst = lamb 'a' (lamb 'b' (pure 'a'))
+        bfree = lamb 'y' (pure 'z')
+        bfree2 = lamb 'c' (lamb 'd' (pure 'e'))
+        bvar = pure 'w'
+        bvar2 = pure 'u'
 
-eid, econst, efree, efree2, evar, ezero :: Exp Char Char
-eid = lam 'x' (var 'x')
-econst = lam 'a' (lam 'b' (var 'a'))
-efree = lam 'y' (var 'z')
-efree2 = lam 'c' (lam 'd' (var 'e'))
-evar = var 'w'
-evar2 = var 'u'
-ezero = zero
+        testEq = testCase "eq" $ do
+            bvar @?= bvar
+            bvar @/= bvar2
+            bid @?= lamb 'x' (pure 'x')
+            bid @?= lamb 'y' (pure 'y')
+            bid @/= lamb 'x' (pure 'y')
+            bid @/= lamb 'y' (pure 'x')
+            bid @/= bvar
 
-test_varsub :: TestTree
-test_varsub = testCase "varsub" $ do
-    (ezero >>= (const evar2)) @?= ezero
-    (evar >>= (const evar2)) @?= evar2
-    (efree >>= (const evar2)) @?= lam 'y' evar2
-    (efree2 >>= (const evar2)) @?= lam 'c' (lam 'd' evar2)
+        testFreeVars = testCase "free vars" $ do
+            freeVars bid @?= V.empty
+            freeVars bconst @?= V.empty
+            freeVars bfree @?= V.singleton 'z'
+            freeVars bfree2 @?= V.singleton 'e'
+            freeVars bvar @?= V.singleton 'w'
+            freeVars bvar2 @=? V.singleton 'u'
 
-test_idsub :: TestTree
-test_idsub = testCase "idsub" $ do
-    (ezero >>= (const eid)) @?= ezero
-    (evar >>= (const eid)) @?= eid
-    (efree >>= (const eid)) @?= lam 'y' eid
-    -- (efree2 >>= (const eid)) @?= lam 'c' (lam 'd' eid)
+        testVarSub = testCase "var sub" $ do
+            (bvar >>= (const bvar2)) @?= bvar2
+            (bfree >>= (const bvar2)) @?= lamb 'y' bvar2
+            (bfree2 >>= (const bvar2)) @?= lamb 'c' (lamb 'd' bvar2)
+
+        testIdSub = testCase "id sub" $ do
+            (bvar >>= (const bid)) @?= bid
+            (bfree >>= (const bid)) @?= lamb 'y' bid
+            -- (bfree2 >>= (const bid)) @?= lamb 'c' (lamb 'd' bid)
+
+    in testGroup name [testEq, testFreeVars, testVarSub, testIdSub]
+
+test_bare :: TestTree
+test_bare = makeTests "sub - bare" bareLamCtor
+
+test_exp :: TestTree
+test_exp = makeTests "sub - exp" expLamCtor

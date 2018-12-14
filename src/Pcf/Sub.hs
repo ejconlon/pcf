@@ -2,13 +2,14 @@
 
 module Pcf.Sub where
 
-import           Control.Monad      (ap)
-import           Data.Bifoldable    (Bifoldable (..))
-import           Data.Bifunctor     (Bifunctor (..))
-import           Data.Bitraversable (Bitraversable (..))
-import           Data.Foldable      (toList)
-import           Data.Vector        (Vector)
-import qualified Data.Vector        as V
+import           Control.Monad       (ap)
+import           Control.Monad.Trans (MonadTrans (..))
+import           Data.Bifoldable     (Bifoldable (..))
+import           Data.Bifunctor      (Bifunctor (..))
+import           Data.Bitraversable  (Bitraversable (..))
+import           Data.Foldable       (toList)
+import           Data.Vector         (Vector)
+import qualified Data.Vector         as V
 
 -- UnderScope
 
@@ -41,6 +42,9 @@ instance Traversable f => Bitraversable (UnderScope f) where
 
 newtype Scope f a = Scope { unScope :: UnderScope f (Scope f a) a }
 
+varScope :: a -> Scope f a
+varScope = Scope . ScopeF
+
 wrapScope :: f (Scope f a) -> Scope f a
 wrapScope = Scope . ScopeE
 
@@ -63,8 +67,11 @@ instance Traversable f => Traversable (Scope f) where
     traverse f (Scope us) = Scope <$> bitraverse (traverse f) f us
 
 instance Functor f => Applicative (Scope f) where
-    pure = Scope . ScopeF
+    pure = varScope
     (<*>) = ap
+
+instance MonadTrans Scope where
+    lift = liftScope
 
 -- TODO These are wrong, need to review shifting and fix
 
@@ -87,9 +94,8 @@ scopeBind n s f =
         ScopeA i e -> Scope (ScopeA i (scopeBind (n + i) e f))
         ScopeE fe -> Scope (ScopeE ((\e -> scopeBind n e f) <$> fe))
 
--- TODO this should accumulate # of binders and avoid capture
 instance Functor f => Monad (Scope f) where
-    return = pure
+    return = varScope
     (>>=) = scopeBind 0
 
 freeVars :: Foldable f => Scope f a -> Vector a
