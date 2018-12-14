@@ -1,11 +1,11 @@
 module Test.Pcf.SubTest where
 
-import           Control.Monad.Identity (Identity(..))
-import           Data.Vector            as V
-import           Pcf.Sub
-import           Test.Pcf.Assertions    ((@/=))
-import           Test.Tasty
-import           Test.Tasty.HUnit
+import Control.Monad.Identity (Identity (..))
+import Data.Vector            as V
+import Pcf.Sub
+import Test.Pcf.Assertions    ((@/=))
+import Test.Tasty
+import Test.Tasty.HUnit
 
 -- Exp
 
@@ -62,13 +62,13 @@ makeTests name lamb =
             freeVars bvar2 @=? V.singleton 'u'
 
         testVarSub = testCase "var sub" $ do
-            (bvar >>= (const bvar2)) @?= bvar2
-            (bfree >>= (const bvar2)) @?= lamb 'y' bvar2
-            (bfree2 >>= (const bvar2)) @?= lamb 'c' (lamb 'd' bvar2)
+            (bvar >>= const bvar2) @?= bvar2
+            (bfree >>= const bvar2) @?= lamb 'y' bvar2
+            (bfree2 >>= const bvar2) @?= lamb 'c' (lamb 'd' bvar2)
 
         testIdSub = testCase "id sub" $ do
-            (bvar >>= (const bid)) @?= bid
-            (bfree >>= (const bid)) @?= lamb 'y' bid
+            (bvar >>= const bid) @?= bid
+            (bfree >>= const bid) @?= lamb 'y' bid
             -- (bfree2 >>= (const bid)) @?= lamb 'c' (lamb 'd' bid)
 
     in testGroup name [testEq, testFreeVars, testVarSub, testIdSub]

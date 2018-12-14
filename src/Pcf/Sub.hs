@@ -88,11 +88,11 @@ scopeShift n s@(Scope us) =
 
 scopeBind :: Functor f => Int -> Scope f a -> (a -> Scope f b) -> Scope f b
 scopeBind n s f =
-    case (unScope s) of
-        ScopeB b -> Scope (ScopeB b)
-        ScopeF a -> scopeShift n (f a)
+    case unScope s of
+        ScopeB b   -> Scope (ScopeB b)
+        ScopeF a   -> scopeShift n (f a)
         ScopeA i e -> Scope (ScopeA i (scopeBind (n + i) e f))
-        ScopeE fe -> Scope (ScopeE ((\e -> scopeBind n e f) <$> fe))
+        ScopeE fe  -> Scope (ScopeE ((\e -> scopeBind n e f) <$> fe))
 
 instance Functor f => Monad (Scope f) where
     return = varScope
