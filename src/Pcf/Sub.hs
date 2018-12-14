@@ -6,6 +6,7 @@ import           Control.Monad      (ap)
 import           Data.Bifoldable    (Bifoldable (..))
 import           Data.Bifunctor     (Bifunctor (..))
 import           Data.Bitraversable (Bitraversable (..))
+import           Data.Foldable      (toList)
 import           Data.Vector        (Vector)
 import qualified Data.Vector        as V
 
@@ -65,15 +66,34 @@ instance Functor f => Applicative (Scope f) where
     pure = Scope . ScopeF
     (<*>) = ap
 
+-- TODO These are wrong, need to review shifting and fix
+
+scopeShift :: Functor f => Int -> Scope f a -> Scope f a
+scopeShift n s@(Scope us) =
+    case us of
+        ScopeB b -> Scope (ScopeB (n + b))
+        ScopeF _ -> s
+        ScopeA i e ->
+            if i >= n
+                then s
+                else Scope (ScopeA i (scopeShift (n - i) e))
+        ScopeE fe -> Scope (ScopeE (scopeShift n <$> fe))
+
+scopeBind :: Functor f => Int -> Scope f a -> (a -> Scope f b) -> Scope f b
+scopeBind n s f =
+    case (unScope s) of
+        ScopeB b -> Scope (ScopeB b)
+        ScopeF a -> scopeShift n (f a)
+        ScopeA i e -> Scope (ScopeA i (scopeBind (n + i) e f))
+        ScopeE fe -> Scope (ScopeE ((\e -> scopeBind n e f) <$> fe))
+
 -- TODO this should accumulate # of binders and avoid capture
 instance Functor f => Monad (Scope f) where
     return = pure
-    Scope us >>= f =
-        case us of
-            ScopeB b   -> Scope (ScopeB b)
-            ScopeF a   -> f a
-            ScopeA i e -> e >>= f
-            ScopeE fe  -> Scope (ScopeE ((>>= f) <$> fe))
+    (>>=) = scopeBind 0
+
+freeVars :: Foldable f => Scope f a -> Vector a
+freeVars = V.fromList . toList
 
 -- Subable
 
@@ -91,16 +111,9 @@ instantiate1 v = instantiate (V.singleton v)
 -- Scope Subable
 
 abstractScope :: (Functor f, Eq a) => Int -> Vector a -> Scope f a -> Scope f a
-abstractScope num ks s =
-    case unScope s of
-        ScopeB b -> Scope (ScopeB (num + b))
-        ScopeF a ->
-            case V.elemIndex a ks of
-                Nothing -> s
-                Just b  -> Scope (ScopeB (num + b))
-        ScopeA nb s' -> let num' = num + nb in Scope (ScopeA num' (abstractScope num' ks s'))
-        ScopeE fs -> Scope (ScopeE (abstractScope num ks <$> fs))
+abstractScope num ks s = scopeBind num s (maybe s (Scope . ScopeB) . flip V.elemIndex ks)
 
+-- TODO finish!
 instantiateScope :: Traversable f => Int -> Vector (Scope f a) -> Scope f a -> Maybe (Scope f a)
 instantiateScope num vs s =
     case unScope s of
@@ -122,49 +135,3 @@ instance Eq a => Eq (Name n a) where
     Name _ x == Name _ y = x == y
 
 type NameOnly n = Name n ()
-
--- Exp
-
-data Bind = Rec | NRec deriving (Eq, Show)
-
-data ExpF n a =
-      App a a
-    | Ifz a a a
-    | Zero
-    | Suc a
-    | Abst Bind (NameOnly n) a
-    deriving (Eq, Show, Functor, Foldable, Traversable)
-
-type Exp n a = Scope (ExpF n) a
-
--- Smart constructors for Exp
-
-var :: a -> Exp n a
-var = pure
-
-abst :: Eq a => Bind -> n -> a -> Exp n a -> Exp n a
-abst b n a = wrapScope . Abst b (Name n ()) . abstract1 a
-
-lam :: Eq a => n -> a -> Exp n a -> Exp n a
-lam = abst NRec
-
-lam' :: Eq n => n -> Exp n n -> Exp n n
-lam' n = lam n n
-
-fix :: Eq a => n -> a -> Exp n a -> Exp n a
-fix = abst Rec
-
-fix' :: Eq n => n -> Exp n n -> Exp n n
-fix' n = fix n n
-
-app :: Exp n a -> Exp n a -> Exp n a
-app l r = wrapScope (App l r)
-
-ifz :: Exp n a -> Exp n a -> Exp n a -> Exp n a
-ifz g t e = wrapScope (Ifz g t e)
-
-zero :: Exp n a
-zero = wrapScope Zero
-
-suc :: Exp n a -> Exp n a
-suc = wrapScope  . Suc
