@@ -6,9 +6,10 @@ import           Control.Monad      (ap)
 import           Data.Bifoldable    (Bifoldable (..))
 import           Data.Bifunctor     (Bifunctor (..))
 import           Data.Bitraversable (Bitraversable (..))
-import           Data.Text          (Text)
 import           Data.Vector        (Vector)
 import qualified Data.Vector        as V
+
+-- UnderScope
 
 data UnderScope f e a =
       ScopeB Int
@@ -34,6 +35,8 @@ instance Traversable f => Bitraversable (UnderScope f) where
     bitraverse _ g (ScopeF a)   = ScopeF <$> g a
     bitraverse f _ (ScopeA i e) = ScopeA i <$> f e
     bitraverse f _ (ScopeE fe)  = ScopeE <$> traverse f fe
+
+-- Scope
 
 newtype Scope f a = Scope { unScope :: UnderScope f (Scope f a) a }
 
@@ -62,6 +65,7 @@ instance Functor f => Applicative (Scope f) where
     pure = Scope . ScopeF
     (<*>) = ap
 
+-- TODO this should accumulate # of binders and avoid capture
 instance Functor f => Monad (Scope f) where
     return = pure
     Scope us >>= f =
@@ -70,6 +74,21 @@ instance Functor f => Monad (Scope f) where
             ScopeF a   -> f a
             ScopeA i e -> e >>= f
             ScopeE fe  -> Scope (ScopeE ((>>= f) <$> fe))
+
+-- Subable
+
+class Subable f where
+    abstract :: Eq a => Vector a -> f a -> f a
+
+    instantiate :: Vector (f a) -> f a -> Maybe (f a)
+
+abstract1 :: (Subable f, Eq a) => a -> f a -> f a
+abstract1 k = abstract (V.singleton k)
+
+instantiate1 :: Subable f => f a -> f a -> Maybe (f a)
+instantiate1 v = instantiate (V.singleton v)
+
+-- Scope Subable
 
 abstractScope :: (Functor f, Eq a) => Int -> Vector a -> Scope f a -> Scope f a
 abstractScope num ks s =
@@ -90,56 +109,62 @@ instantiateScope num vs s =
         -- ScopeA nb s' -> instantiateScope (num + nb) vs s'
         -- ScopeE fs -> Scope . ScopeE  <$> (traverse (instantiateScope num vs) fs)
 
-class Subable f where
-    abstract :: Eq a => Vector a -> f a -> f a
-
-    abstract1 :: Eq a => a -> f a -> f a
-    abstract1 k = abstract (V.singleton k)
-
-    instantiate :: Vector (f a) -> f a -> Maybe (f a)
-
-    instantiate1 :: f a -> f a -> Maybe (f a)
-    instantiate1 v = instantiate (V.singleton v)
-
 instance Traversable f => Subable (Scope f) where
     abstract ks = let num = V.length ks in Scope . ScopeA num . abstractScope num ks
 
     instantiate = instantiateScope 0
+
+-- Name
 
 data Name n a = Name n a deriving (Show, Functor, Foldable, Traversable)
 
 instance Eq a => Eq (Name n a) where
     Name _ x == Name _ y = x == y
 
+type NameOnly n = Name n ()
+
+-- Exp
+
+data Bind = Rec | NRec deriving (Eq, Show)
+
 data ExpF n a =
       App a a
     | Ifz a a a
     | Zero
     | Suc a
-    | Lam (Name n ()) a
+    | Abst Bind (NameOnly n) a
     deriving (Eq, Show, Functor, Foldable, Traversable)
 
-newtype Exp n a = Exp { unExp :: Scope (ExpF n) a }
-    deriving (Eq, Show, Functor, Foldable, Traversable, Applicative, Monad)
+type Exp n a = Scope (ExpF n) a
 
-instance Subable (Exp n) where
-    abstract ks = Exp . abstract ks . unExp
-    instantiate vs = (Exp <$>) . instantiate (unExp <$> vs) . unExp
+-- Smart constructors for Exp
 
 var :: a -> Exp n a
-var = Exp . pure
+var = pure
+
+abst :: Eq a => Bind -> n -> a -> Exp n a -> Exp n a
+abst b n a = wrapScope . Abst b (Name n ()) . abstract1 a
 
 lam :: Eq a => n -> a -> Exp n a -> Exp n a
-lam n a = Exp . wrapScope . Lam (Name n ()) . unExp . abstract1 a
+lam = abst NRec
+
+lam' :: Eq n => n -> Exp n n -> Exp n n
+lam' n = lam n n
+
+fix :: Eq a => n -> a -> Exp n a -> Exp n a
+fix = abst Rec
+
+fix' :: Eq n => n -> Exp n n -> Exp n n
+fix' n = fix n n
 
 app :: Exp n a -> Exp n a -> Exp n a
-app l r = Exp (wrapScope (App (unExp l) (unExp r)))
+app l r = wrapScope (App l r)
 
 ifz :: Exp n a -> Exp n a -> Exp n a -> Exp n a
-ifz g t e = Exp (wrapScope (Ifz (unExp g) (unExp t) (unExp e)))
+ifz g t e = wrapScope (Ifz g t e)
 
 zero :: Exp n a
-zero = Exp (wrapScope Zero)
+zero = wrapScope Zero
 
 suc :: Exp n a -> Exp n a
-suc = Exp  . wrapScope  . Suc  . unExp
+suc = wrapScope  . Suc
