@@ -27,13 +27,48 @@ lam n = lam' n n
 
 -- Test gen
 
+type Bare a = Scope Identity a
+
 type LamCtor f a = a -> Scope f a -> Scope f a
 
 bareLamCtor :: Eq a => LamCtor Identity a
-bareLamCtor a = wrapScope . Identity . abstract1 a
+bareLamCtor a = abstract1 a
 
 expLamCtor :: Eq a => LamCtor (ExpF a) a
 expLamCtor = lam
+
+-- Bound var sanity checks
+
+boundVar :: Int -> Scope f a
+boundVar = Scope . ScopeB
+
+test_bound = testCase "sub - bound vars" $ do
+    let bvar = pure 'x' :: Bare Char
+        expectedBvar = Scope (ScopeF 'x') :: Bare Char
+        bbound = boundVar 0 :: Bare Char
+        expectedBbound = Scope (ScopeB 0) :: Bare Char
+        bfree = bareLamCtor 'y' bvar :: Bare Char
+        expectedBfree = Scope (ScopeA 1 (Scope (ScopeF 'x'))) :: Bare Char
+        bfree2 = bareLamCtor 'z' bfree :: Bare Char
+        expectedBFree2 = Scope (ScopeA 1 (Scope (ScopeA 1 (Scope (ScopeF 'x'))))) :: Bare Char
+        bid = bareLamCtor 'x' bvar :: Bare Char
+        expectedBid = Scope (ScopeA 1 (Scope (ScopeB 0))) :: Bare Char
+        bwonky = bareLamCtor 'x' bbound :: Bare Char
+        expectedBwonky = Scope (ScopeA 1 (Scope (ScopeB 1))) :: Bare Char
+        bconst = bareLamCtor 'x' (bareLamCtor 'y' (pure 'x')) :: Bare Char
+        expectedBconst = Scope (ScopeA 1 (Scope (ScopeA 1 (Scope (ScopeB 1))))) :: Bare Char
+        bflip = bareLamCtor 'x' (bareLamCtor 'y' (pure 'y')) :: Bare Char
+        expectedBflip = Scope (ScopeA 1 (Scope (ScopeA 1 (Scope (ScopeB 0))))) :: Bare Char
+    bvar @?= expectedBvar
+    bbound @?= expectedBbound
+    bfree @?= expectedBfree
+    bfree2 @?= expectedBFree2
+    bid @?= expectedBid
+    bwonky @?= expectedBwonky
+    bconst @?= expectedBconst
+    bflip @?= expectedBflip
+
+-- Comprehensive tests
 
 makeTests :: (Functor f, Foldable f, Eq (f (Scope f Char)), Show (f (Scope f Char))) => String -> LamCtor f Char -> TestTree
 makeTests name lamb =
@@ -69,7 +104,7 @@ makeTests name lamb =
         testIdSub = testCase "id sub" $ do
             (bvar >>= const bid) @?= bid
             (bfree >>= const bid) @?= lamb 'y' bid
-            -- (bfree2 >>= (const bid)) @?= lamb 'c' (lamb 'd' bid)
+            (bfree2 >>= const bid) @?= lamb 'c' (lamb 'd' bid)
 
     in testGroup name [testEq, testFreeVars, testVarSub, testIdSub]
 
