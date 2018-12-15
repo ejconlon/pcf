@@ -76,22 +76,25 @@ instance MonadTrans Scope where
 
 -- TODO These are wrong, need to review shifting and fix
 
-scopeShift :: Functor f => Int -> Int -> Scope f a -> Scope f a
-scopeShift c d s@(Scope us) =
+subScopeShift :: Functor f => Int -> Int -> Scope f a -> Scope f a
+subScopeShift c d s@(Scope us) =
     case us of
         ScopeB b ->
             if b < c
                 then s
                 else Scope (ScopeB (b + d))
         ScopeF _ -> s
-        ScopeA i e -> Scope (ScopeA i (scopeShift (c + i) d e))
-        ScopeE fe -> Scope (ScopeE (scopeShift c d <$> fe))
+        ScopeA i e -> Scope (ScopeA i (subScopeShift (c + i) d e))
+        ScopeE fe -> Scope (ScopeE (subScopeShift c d <$> fe))
+
+scopeShift :: Functor f => Int -> Scope f a -> Scope f a
+scopeShift d s = subScopeShift 0 d s
 
 scopeBind :: Functor f => Int -> Scope f a -> (a -> Scope f b) -> Scope f b
 scopeBind n s f =
     case unScope s of
         ScopeB b   -> Scope (ScopeB b)
-        ScopeF a   -> scopeShift 0 n (f a)
+        ScopeF a   -> scopeShift n (f a)
         ScopeA i e -> Scope (ScopeA i (scopeBind (n + i) e f))
         ScopeE fe  -> Scope (ScopeE ((\e -> scopeBind n e f) <$> fe))
 
@@ -105,37 +108,28 @@ instance Functor f => Monad (Scope f) where
 freeVars :: Foldable f => Scope f a -> Vector a
 freeVars = V.fromList . toList
 
--- Subable
+subAbstract :: (Functor f, Eq a) => Vector a -> Scope f a -> Scope f a
+subAbstract ks s = scopeBindOpt 0 s ((Scope . ScopeB <$>) . flip V.elemIndex ks)
 
-class Subable f where
-    abstract :: Eq a => Vector a -> f a -> f a
+subInstantiate :: Functor f => Int -> Vector (Scope f a) -> Scope f a -> Scope f a
+subInstantiate n vs s =
+    case unScope s of
+        ScopeB b -> fromMaybe s (vs V.!? (b - n))
+        ScopeF _ -> s
+        ScopeA i e -> subInstantiate (n + i) (scopeShift i <$> vs) e
+        ScopeE fe -> Scope (ScopeE (subInstantiate n vs <$> fe))
 
-    instantiate :: Vector (f a) -> f a -> Maybe (f a)
+abstract :: (Functor f, Eq a) => Vector a -> Scope f a -> Scope f a
+abstract ks = let num = V.length ks in Scope . ScopeA num . subAbstract ks . scopeShift num
 
-abstract1 :: (Subable f, Eq a) => a -> f a -> f a
+instantiate :: Functor f => Vector (Scope f a) -> Scope f a -> Scope f a
+instantiate = subInstantiate 0
+
+abstract1 :: (Functor f, Eq a) => a -> Scope f a -> Scope f a
 abstract1 k = abstract (V.singleton k)
 
-instantiate1 :: Subable f => f a -> f a -> Maybe (f a)
+instantiate1 :: Functor f => Scope f a -> Scope f a -> Scope f a
 instantiate1 v = instantiate (V.singleton v)
-
--- Scope Subable
-
-abstractScope :: (Functor f, Eq a) => Vector a -> Scope f a -> Scope f a
-abstractScope ks s = scopeBindOpt 0 s ((Scope . ScopeB <$>) . flip V.elemIndex ks)
-
--- TODO finish!
-instantiateScope :: Traversable f => Int -> Vector (Scope f a) -> Scope f a -> Maybe (Scope f a)
-instantiateScope num vs s =
-    case unScope s of
-        ScopeB b -> undefined
-        -- ScopeF _ -> Just s
-        -- ScopeA nb s' -> instantiateScope (num + nb) vs s'
-        -- ScopeE fs -> Scope . ScopeE  <$> (traverse (instantiateScope num vs) fs)
-
-instance Traversable f => Subable (Scope f) where
-    abstract ks = let num = V.length ks in Scope . ScopeA num . abstractScope ks . scopeShift 0 num
-
-    instantiate = instantiateScope 0
 
 -- Name
 
