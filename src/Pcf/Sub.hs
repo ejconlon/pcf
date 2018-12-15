@@ -1,9 +1,9 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Pcf.Sub (
-    Binder,
+    Binder (..),
     Name (..),
     NameOnly,
-    Scope,
+    Scope (..),
     abstract,
     abstract1,
     binderArity,

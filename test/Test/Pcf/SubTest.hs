@@ -3,6 +3,7 @@ module Test.Pcf.SubTest where
 import Control.Monad.Identity (Identity (..))
 import Data.Vector            as V
 import Pcf.Sub
+import Pcf.Sub.Internal
 import Test.Pcf.Assertions    ((@/=))
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -27,7 +28,8 @@ lam n = lam' n n
 
 -- Test gen
 
-type Bare a = Scope Identity a
+type BareScope = Scope Identity Char
+type BareBinder = Binder Identity Char
 
 type LamCtor f a = a -> Scope f a -> Scope f a
 
@@ -44,33 +46,39 @@ boundVar = Scope . ScopeB
 
 test_core :: TestTree
 test_core =
-    let bvar = pure 'x' :: Bare Char
-        bbound = boundVar 0 :: Bare Char
-        bfree = bareLamCtor 'y' bvar :: Bare Char
-        bfree2 = bareLamCtor 'z' bfree :: Bare Char
-        bid = bareLamCtor 'x' bvar :: Bare Char
-        bwonky = bareLamCtor 'x' bbound :: Bare Char
-        bconst = bareLamCtor 'x' bfree :: Bare Char
-        bflip = bareLamCtor 'y' bid :: Bare Char
+    let svar = pure 'x' :: BareScope
+        sbound = boundVar 0 :: BareScope
+        bfree = abstract1 'y' svar :: BareBinder
+        sfree = boundScope bfree
+        bfree2 = abstract1 'z' sfree :: BareBinder
+        sfree2 = boundScope bfree2
+        bid = abstract1 'x' svar :: BareBinder
+        sid = boundScope bid
+        bwonky = abstract1 'x' sbound :: BareBinder
+        swonky = boundScope bwonky
+        bconst = abstract1 'x' sfree :: BareBinder
+        sconst = boundScope bconst
+        bflip = abstract1 'y' sid :: BareBinder
+        sflip = boundScope bflip
 
         testAbstract = testCase "abstract" $ do
-            bvar @?= (Scope (ScopeF 'x') :: Bare Char)
-            bbound @?= (Scope (ScopeB 0) :: Bare Char)
-            bfree @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeF 'x')))) :: Bare Char)
-            bfree2 @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeA (UnderBinder 1 (Scope (ScopeF 'x'))))))) :: Bare Char)
-            bid @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeB 0)))) :: Bare Char)
-            bwonky @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeB 1)))) :: Bare Char)
-            bconst @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeA (UnderBinder 1 (Scope (ScopeB 1))))))) :: Bare Char)
-            bflip @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeA (UnderBinder 1 (Scope (ScopeB 0))))))) :: Bare Char)
+            svar @?= (Scope (ScopeF 'x') :: BareScope)
+            sbound @?= (Scope (ScopeB 0) :: BareScope)
+            sfree @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeF 'x')))) :: BareScope)
+            sfree2 @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeA (UnderBinder 1 (Scope (ScopeF 'x'))))))) :: BareScope)
+            sid @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeB 0)))) :: BareScope)
+            swonky @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeB 1)))) :: BareScope)
+            sconst @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeA (UnderBinder 1 (Scope (ScopeB 1))))))) :: BareScope)
+            sflip @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeA (UnderBinder 1 (Scope (ScopeB 0))))))) :: BareScope)
 
         testInstantiate = testCase "instantiate" $ do
             1 @?= 1
-            -- let bvar2 = pure 'e' :: Bare Char
+            -- let bvar2 = pure 'e' :: BareScope
             -- instantiate1 bvar2 bvar @?= bvar
             -- instantiate1 bvar2 bbound @?= bvar2
             -- instantiate1 bvar2 bid @?= bbound
             -- instantiate1 bvar2 bwonky @?= bvar2
-            -- instantiate1 bvar2 bconst @?= (bareLamCtor 'x' bvar2 :: Bare Char)
+            -- instantiate1 bvar2 bconst @?= (bareLamCtor 'x' bvar2 :: BareScope)
             -- instantiate1 bvar2 bflip @?= bflip
 
     in testGroup "sub - core" [testAbstract, testInstantiate]
@@ -79,39 +87,39 @@ test_core =
 
 makeTests :: (Functor f, Foldable f, Eq (f (Scope f Char)), Show (f (Scope f Char))) => String -> LamCtor f Char -> TestTree
 makeTests name lamb =
-    let bid = lamb 'x' (pure 'x')
-        bconst = lamb 'a' (lamb 'b' (pure 'a'))
-        bfree = lamb 'y' (pure 'z')
-        bfree2 = lamb 'c' (lamb 'd' (pure 'e'))
-        bvar = pure 'w'
-        bvar2 = pure 'u'
+    let sid = lamb 'x' (pure 'x')
+        sconst = lamb 'a' (lamb 'b' (pure 'a'))
+        sfree = lamb 'y' (pure 'z')
+        sfree2 = lamb 'c' (lamb 'd' (pure 'e'))
+        svar = pure 'w'
+        svar2 = pure 'u'
 
         testEq = testCase "eq" $ do
-            bvar @?= bvar
-            bvar @/= bvar2
-            bid @?= lamb 'x' (pure 'x')
-            bid @?= lamb 'y' (pure 'y')
-            bid @/= lamb 'x' (pure 'y')
-            bid @/= lamb 'y' (pure 'x')
-            bid @/= bvar
+            svar @?= svar
+            svar @/= svar2
+            sid @?= lamb 'x' (pure 'x')
+            sid @?= lamb 'y' (pure 'y')
+            sid @/= lamb 'x' (pure 'y')
+            sid @/= lamb 'y' (pure 'x')
+            sid @/= svar
 
         testFreeVars = testCase "free vars" $ do
-            freeVars bid @?= V.empty
-            freeVars bconst @?= V.empty
-            freeVars bfree @?= V.singleton 'z'
-            freeVars bfree2 @?= V.singleton 'e'
-            freeVars bvar @?= V.singleton 'w'
-            freeVars bvar2 @=? V.singleton 'u'
+            freeVars sid @?= V.empty
+            freeVars sconst @?= V.empty
+            freeVars sfree @?= V.singleton 'z'
+            freeVars sfree2 @?= V.singleton 'e'
+            freeVars svar @?= V.singleton 'w'
+            freeVars svar2 @=? V.singleton 'u'
 
         testVarSub = testCase "var sub" $ do
-            (bvar >>= const bvar2) @?= bvar2
-            (bfree >>= const bvar2) @?= lamb 'y' bvar2
-            (bfree2 >>= const bvar2) @?= lamb 'c' (lamb 'd' bvar2)
+            (svar >>= const svar2) @?= svar2
+            (sfree >>= const svar2) @?= lamb 'y' svar2
+            (sfree2 >>= const svar2) @?= lamb 'c' (lamb 'd' svar2)
 
         testIdSub = testCase "id sub" $ do
-            (bvar >>= const bid) @?= bid
-            (bfree >>= const bid) @?= lamb 'y' bid
-            (bfree2 >>= const bid) @?= lamb 'c' (lamb 'd' bid)
+            (svar >>= const sid) @?= sid
+            (sfree >>= const sid) @?= lamb 'y' sid
+            (sfree2 >>= const sid) @?= lamb 'c' (lamb 'd' sid)
 
     in testGroup name [testEq, testFreeVars, testVarSub, testIdSub]
 
