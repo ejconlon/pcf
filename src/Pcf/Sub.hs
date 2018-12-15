@@ -1,56 +1,39 @@
 {-# LANGUAGE UndecidableInstances #-}
-
-module Pcf.Sub where
+module Pcf.Sub (
+    Binder,
+    Name (..),
+    NameOnly,
+    Scope,
+    abstract,
+    abstract1,
+    binderArity,
+    binderBody,
+    boundScope,
+    freeVars,
+    -- instantiate,
+    -- instantiate1
+    liftScope,
+    matchBinder,
+    varScope,
+    wrapScope
+) where
 
 import           Control.Monad       (ap)
 import           Control.Monad.Trans (MonadTrans (..))
-import           Data.Bifoldable     (Bifoldable (..))
-import           Data.Bifunctor      (Bifunctor (..))
-import           Data.Bitraversable  (Bitraversable (..))
+import           Data.Bifoldable     (bifoldr)
+import           Data.Bifunctor      (bimap)
+import           Data.Bitraversable  (bitraverse)
 import           Data.Foldable       (toList)
 import           Data.Maybe          (fromMaybe)
 import           Data.Vector         (Vector)
 import qualified Data.Vector         as V
-
--- UnderScope
-
-data UnderScope f e a =
-      ScopeB Int
-    | ScopeF a
-    | ScopeA Int e
-    | ScopeE (f e)
-    deriving (Eq, Show)
-
-instance Functor f => Bifunctor (UnderScope f) where
-    bimap _ _ (ScopeB b)   = ScopeB b
-    bimap _ g (ScopeF a)   = ScopeF (g a)
-    bimap f _ (ScopeA i e) = ScopeA i (f e)
-    bimap f _ (ScopeE fe)  = ScopeE (f <$> fe)
-
-instance Foldable f => Bifoldable (UnderScope f) where
-    bifoldr _ _ z (ScopeB _)   = z
-    bifoldr _ g z (ScopeF a)   = g a z
-    bifoldr f _ z (ScopeA _ e) = f e z
-    bifoldr f _ z (ScopeE fe)  = foldr f z fe
-
-instance Traversable f => Bitraversable (UnderScope f) where
-    bitraverse _ _ (ScopeB b)   = pure (ScopeB b)
-    bitraverse _ g (ScopeF a)   = ScopeF <$> g a
-    bitraverse f _ (ScopeA i e) = ScopeA i <$> f e
-    bitraverse f _ (ScopeE fe)  = ScopeE <$> traverse f fe
+import           GHC.Generics        (Generic)
+import           Pcf.Sub.Internal
 
 -- Scope
 
 newtype Scope f a = Scope { unScope :: UnderScope f (Scope f a) a }
-
-varScope :: a -> Scope f a
-varScope = Scope . ScopeF
-
-wrapScope :: f (Scope f a) -> Scope f a
-wrapScope = Scope . ScopeE
-
-liftScope :: Functor f => f a -> Scope f a
-liftScope = wrapScope . (pure <$>)
+    deriving (Generic)
 
 instance (Eq (f (Scope f a)), Eq a) => Eq (Scope f a) where
     Scope u == Scope v = u == v
@@ -71,11 +54,6 @@ instance Functor f => Applicative (Scope f) where
     pure = varScope
     (<*>) = ap
 
-instance MonadTrans Scope where
-    lift = liftScope
-
--- TODO These are wrong, need to review shifting and fix
-
 subScopeShift :: Functor f => Int -> Int -> Scope f a -> Scope f a
 subScopeShift c d s@(Scope us) =
     case us of
@@ -84,7 +62,7 @@ subScopeShift c d s@(Scope us) =
                 then s
                 else Scope (ScopeB (b + d))
         ScopeF _ -> s
-        ScopeA i e -> Scope (ScopeA i (subScopeShift (c + i) d e))
+        ScopeA (UnderBinder i e) -> Scope (ScopeA (UnderBinder i (subScopeShift (c + i) d e)))
         ScopeE fe -> Scope (ScopeE (subScopeShift c d <$> fe))
 
 scopeShift :: Functor f => Int -> Scope f a -> Scope f a
@@ -95,7 +73,7 @@ scopeBind n s f =
     case unScope s of
         ScopeB b   -> Scope (ScopeB b)
         ScopeF a   -> scopeShift n (f a)
-        ScopeA i e -> Scope (ScopeA i (scopeBind (n + i) e f))
+        ScopeA (UnderBinder i e) -> Scope (ScopeA (UnderBinder i (scopeBind (n + i) e f)))
         ScopeE fe  -> Scope (ScopeE ((\e -> scopeBind n e f) <$> fe))
 
 scopeBindOpt :: Functor f => Int -> Scope f a -> (a -> Maybe (Scope f a)) -> Scope f a
@@ -105,11 +83,49 @@ instance Functor f => Monad (Scope f) where
     return = varScope
     (>>=) = scopeBind 0
 
+instance MonadTrans Scope where
+    lift = liftScope
+
+varScope :: a -> Scope f a
+varScope = Scope . ScopeF
+
+wrapScope :: f (Scope f a) -> Scope f a
+wrapScope = Scope . ScopeE
+
+liftScope :: Functor f => f a -> Scope f a
+liftScope = wrapScope . (pure <$>)
+
+boundScope :: Binder f a -> Scope f a
+boundScope = Scope . ScopeA . unBinder
+
 freeVars :: Foldable f => Scope f a -> Vector a
 freeVars = V.fromList . toList
 
-subAbstract :: (Functor f, Eq a) => Vector a -> Scope f a -> Scope f a
-subAbstract ks s = scopeBindOpt 0 s ((Scope . ScopeB <$>) . flip V.elemIndex ks)
+-- Binder
+
+newtype Binder f a = Binder { unBinder :: UnderBinder (Scope f a) }
+    deriving (Generic, Functor, Foldable, Traversable)
+
+instance (Eq (f (Scope f a)), Eq a) => Eq (Binder f a) where
+    Binder u == Binder v = u == v
+
+instance (Show (f (Scope f a)), Show a) => Show (Binder f a) where
+    showsPrec d (Binder u) = showsPrec d u
+
+matchBinder :: Scope f a -> Maybe (Binder f a)
+matchBinder (Scope (ScopeA ub)) = pure (Binder ub)
+matchBinder _ = Nothing
+
+binderArity :: Binder f a -> Int
+binderArity (Binder (UnderBinder a _)) = a
+
+binderBody :: Binder f a -> Scope f a
+binderBody (Binder (UnderBinder _ b)) = b
+
+-- Abstraction and instantiation
+
+subAbstract :: (Functor f, Eq a) => Int -> Vector a -> Scope f a -> Binder f a
+subAbstract n ks s = Binder (UnderBinder n (scopeBindOpt 0 s ((Scope . ScopeB <$>) . flip V.elemIndex ks)))
 
 -- subInstantiate :: Functor f => Int -> Vector (Scope f a) -> Scope f a -> Scope f a
 -- subInstantiate n vs s =
@@ -119,16 +135,16 @@ subAbstract ks s = scopeBindOpt 0 s ((Scope . ScopeB <$>) . flip V.elemIndex ks)
 --         ScopeA i e -> subInstantiate (n + i) (scopeShift i <$> vs) e
 --         ScopeE fe -> Scope (ScopeE (subInstantiate n vs <$> fe))
 
-abstract :: (Functor f, Eq a) => Vector a -> Scope f a -> Scope f a
-abstract ks = let num = V.length ks in Scope . ScopeA num . subAbstract ks . scopeShift num
+abstract :: (Functor f, Eq a) => Vector a -> Scope f a -> Binder f a
+abstract ks = let n = V.length ks in subAbstract n ks . scopeShift n
 
--- instantiate :: Functor f => Vector (Scope f a) -> Scope f a -> Scope f a
+-- instantiate :: Functor f => Vector (Scope f a) -> Binder f a -> Scope f a
 -- instantiate = subInstantiate 0
 
-abstract1 :: (Functor f, Eq a) => a -> Scope f a -> Scope f a
+abstract1 :: (Functor f, Eq a) => a -> Scope f a -> Binder f a
 abstract1 k = abstract (V.singleton k)
 
--- instantiate1 :: Functor f => Scope f a -> Scope f a -> Scope f a
+-- instantiate1 :: Functor f => Scope f a -> Binder f a -> Scope f a
 -- instantiate1 v = instantiate (V.singleton v)
 
 -- Name

@@ -20,7 +20,7 @@ data ExpF n a =
 type Exp n a = Scope (ExpF n) a
 
 lam' :: Eq a => n -> a -> Exp n a -> Exp n a
-lam' n a = wrapScope . Lam (Name n ()) . abstract1 a
+lam' n a = wrapScope . Lam (Name n ()) . boundScope . abstract1 a
 
 lam :: Eq n => n -> Exp n n -> Exp n n
 lam n = lam' n n
@@ -32,7 +32,7 @@ type Bare a = Scope Identity a
 type LamCtor f a = a -> Scope f a -> Scope f a
 
 bareLamCtor :: Eq a => LamCtor Identity a
-bareLamCtor a = abstract1 a
+bareLamCtor a = boundScope . abstract1 a
 
 expLamCtor :: Eq a => LamCtor (ExpF a) a
 expLamCtor = lam
@@ -56,12 +56,12 @@ test_core =
         testAbstract = testCase "abstract" $ do
             bvar @?= (Scope (ScopeF 'x') :: Bare Char)
             bbound @?= (Scope (ScopeB 0) :: Bare Char)
-            bfree @?= (Scope (ScopeA 1 (Scope (ScopeF 'x'))) :: Bare Char)
-            bfree2 @?= (Scope (ScopeA 1 (Scope (ScopeA 1 (Scope (ScopeF 'x'))))) :: Bare Char)
-            bid @?= (Scope (ScopeA 1 (Scope (ScopeB 0))) :: Bare Char)
-            bwonky @?= (Scope (ScopeA 1 (Scope (ScopeB 1))) :: Bare Char)
-            bconst @?= (Scope (ScopeA 1 (Scope (ScopeA 1 (Scope (ScopeB 1))))) :: Bare Char)
-            bflip @?= (Scope (ScopeA 1 (Scope (ScopeA 1 (Scope (ScopeB 0))))) :: Bare Char)
+            bfree @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeF 'x')))) :: Bare Char)
+            bfree2 @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeA (UnderBinder 1 (Scope (ScopeF 'x'))))))) :: Bare Char)
+            bid @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeB 0)))) :: Bare Char)
+            bwonky @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeB 1)))) :: Bare Char)
+            bconst @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeA (UnderBinder 1 (Scope (ScopeB 1))))))) :: Bare Char)
+            bflip @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeA (UnderBinder 1 (Scope (ScopeB 0))))))) :: Bare Char)
 
         testInstantiate = testCase "instantiate" $ do
             1 @?= 1
