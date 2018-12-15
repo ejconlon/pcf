@@ -37,36 +37,43 @@ bareLamCtor a = abstract1 a
 expLamCtor :: Eq a => LamCtor (ExpF a) a
 expLamCtor = lam
 
--- Bound var sanity checks
+-- Core tests
 
 boundVar :: Int -> Scope f a
 boundVar = Scope . ScopeB
 
-test_bound = testCase "sub - bound vars" $ do
+test_core :: TestTree
+test_core =
     let bvar = pure 'x' :: Bare Char
-        expectedBvar = Scope (ScopeF 'x') :: Bare Char
         bbound = boundVar 0 :: Bare Char
-        expectedBbound = Scope (ScopeB 0) :: Bare Char
         bfree = bareLamCtor 'y' bvar :: Bare Char
-        expectedBfree = Scope (ScopeA 1 (Scope (ScopeF 'x'))) :: Bare Char
         bfree2 = bareLamCtor 'z' bfree :: Bare Char
-        expectedBFree2 = Scope (ScopeA 1 (Scope (ScopeA 1 (Scope (ScopeF 'x'))))) :: Bare Char
         bid = bareLamCtor 'x' bvar :: Bare Char
-        expectedBid = Scope (ScopeA 1 (Scope (ScopeB 0))) :: Bare Char
         bwonky = bareLamCtor 'x' bbound :: Bare Char
-        expectedBwonky = Scope (ScopeA 1 (Scope (ScopeB 1))) :: Bare Char
         bconst = bareLamCtor 'x' bfree :: Bare Char
-        expectedBconst = Scope (ScopeA 1 (Scope (ScopeA 1 (Scope (ScopeB 1))))) :: Bare Char
         bflip = bareLamCtor 'y' bid :: Bare Char
-        expectedBflip = Scope (ScopeA 1 (Scope (ScopeA 1 (Scope (ScopeB 0))))) :: Bare Char
-    bvar @?= expectedBvar
-    bbound @?= expectedBbound
-    bfree @?= expectedBfree
-    bfree2 @?= expectedBFree2
-    bid @?= expectedBid
-    bwonky @?= expectedBwonky
-    bconst @?= expectedBconst
-    bflip @?= expectedBflip
+
+        testAbstract = testCase "abstract" $ do
+            bvar @?= (Scope (ScopeF 'x') :: Bare Char)
+            bbound @?= (Scope (ScopeB 0) :: Bare Char)
+            bfree @?= (Scope (ScopeA 1 (Scope (ScopeF 'x'))) :: Bare Char)
+            bfree2 @?= (Scope (ScopeA 1 (Scope (ScopeA 1 (Scope (ScopeF 'x'))))) :: Bare Char)
+            bid @?= (Scope (ScopeA 1 (Scope (ScopeB 0))) :: Bare Char)
+            bwonky @?= (Scope (ScopeA 1 (Scope (ScopeB 1))) :: Bare Char)
+            bconst @?= (Scope (ScopeA 1 (Scope (ScopeA 1 (Scope (ScopeB 1))))) :: Bare Char)
+            bflip @?= (Scope (ScopeA 1 (Scope (ScopeA 1 (Scope (ScopeB 0))))) :: Bare Char)
+
+        testInstantiate = testCase "instantiate" $ do
+            1 @?= 1
+            -- let bvar2 = pure 'e' :: Bare Char
+            -- instantiate1 bvar2 bvar @?= bvar
+            -- instantiate1 bvar2 bbound @?= bvar2
+            -- instantiate1 bvar2 bid @?= bbound
+            -- instantiate1 bvar2 bwonky @?= bvar2
+            -- instantiate1 bvar2 bconst @?= (bareLamCtor 'x' bvar2 :: Bare Char)
+            -- instantiate1 bvar2 bflip @?= bflip
+
+    in testGroup "sub - core" [testAbstract, testInstantiate]
 
 -- Comprehensive tests
 

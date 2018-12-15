@@ -111,25 +111,25 @@ freeVars = V.fromList . toList
 subAbstract :: (Functor f, Eq a) => Vector a -> Scope f a -> Scope f a
 subAbstract ks s = scopeBindOpt 0 s ((Scope . ScopeB <$>) . flip V.elemIndex ks)
 
-subInstantiate :: Functor f => Int -> Vector (Scope f a) -> Scope f a -> Scope f a
-subInstantiate n vs s =
-    case unScope s of
-        ScopeB b -> fromMaybe s (vs V.!? (b - n))
-        ScopeF _ -> s
-        ScopeA i e -> subInstantiate (n + i) (scopeShift i <$> vs) e
-        ScopeE fe -> Scope (ScopeE (subInstantiate n vs <$> fe))
+-- subInstantiate :: Functor f => Int -> Vector (Scope f a) -> Scope f a -> Scope f a
+-- subInstantiate n vs s =
+--     case unScope s of
+--         ScopeB b -> fromMaybe s (vs V.!? (b - n))
+--         ScopeF _ -> s
+--         ScopeA i e -> subInstantiate (n + i) (scopeShift i <$> vs) e
+--         ScopeE fe -> Scope (ScopeE (subInstantiate n vs <$> fe))
 
 abstract :: (Functor f, Eq a) => Vector a -> Scope f a -> Scope f a
 abstract ks = let num = V.length ks in Scope . ScopeA num . subAbstract ks . scopeShift num
 
-instantiate :: Functor f => Vector (Scope f a) -> Scope f a -> Scope f a
-instantiate = subInstantiate 0
+-- instantiate :: Functor f => Vector (Scope f a) -> Scope f a -> Scope f a
+-- instantiate = subInstantiate 0
 
 abstract1 :: (Functor f, Eq a) => a -> Scope f a -> Scope f a
 abstract1 k = abstract (V.singleton k)
 
-instantiate1 :: Functor f => Scope f a -> Scope f a -> Scope f a
-instantiate1 v = instantiate (V.singleton v)
+-- instantiate1 :: Functor f => Scope f a -> Scope f a -> Scope f a
+-- instantiate1 v = instantiate (V.singleton v)
 
 -- Name
 
