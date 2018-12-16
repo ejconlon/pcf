@@ -22,6 +22,14 @@ import           Pcf.V2.Types
 localMod :: MonadReader x m => (Lens' x y) -> (y -> y) -> m z -> m z
 localMod lens mod = local (over lens mod)
 
+-- Scope manipulation
+
+instantiateAndThen :: (MonadReader x m, Functor f, Ord a) => (Lens' x (Map a w)) -> a -> w -> Binder n f a -> m r -> (Scope n f a -> m r) -> m r
+instantiateAndThen lens a w b z f =
+    case apply1 (pure a) b of
+        Nothing -> z
+        Just s -> localMod lens (M.insert a w) (f s)
+
 -- VarGen
 
 type VarGen n m a = n -> m a
@@ -60,9 +68,7 @@ tySF = ScopeFold bound free binder functor where
         let ExpN (Name n ()) ty = binderInfo b
         gen <- view (field @"teGen")
         a <- lift (gen n)
-        case apply1 (pure a) b of
-            Nothing -> throwError TySubErr
-            Just s  -> localMod (field @"teTyMap") (M.insert a ty) (Arr ty <$> typeCheck s)
+        instantiateAndThen (field @"teTyMap") a ty b (throwError TySubErr) ((Arr ty <$>) . typeCheck)
 
     functor = \case
         App f x -> do
