@@ -4,27 +4,10 @@ import Control.Monad.Identity (Identity (..))
 import Data.Vector            as V
 import Pcf.Core.Sub
 import Pcf.Core.Sub.Internal
+import Pcf.V2.Types           (ExpF, lam)
 import Test.Pcf.Assertions    ((@/=))
 import Test.Tasty
 import Test.Tasty.HUnit
-
--- Exp
-
-data ExpF n a =
-      App a a
-    | Ifz a a a
-    | Zero
-    | Suc a
-    | Lam (NameOnly n) a
-    deriving (Eq, Show, Functor, Foldable, Traversable)
-
-type Exp n a = Scope (ExpF n) a
-
-lam' :: Eq a => n -> a -> Exp n a -> Exp n a
-lam' n a = wrapScope . Lam (Name n ()) . boundScope . abstract1 a
-
-lam :: Eq n => n -> Exp n n -> Exp n n
-lam n = lam' n n
 
 -- Test gen
 
