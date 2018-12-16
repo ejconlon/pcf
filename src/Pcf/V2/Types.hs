@@ -3,7 +3,7 @@ module Pcf.V2.Types where
 import Pcf.Core.Sub
 
 data ExpF n a =
-    App a a
+      App a a
     | Ifz a a a
     | Zero
     | Suc a

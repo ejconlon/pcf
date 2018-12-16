@@ -13,6 +13,7 @@ import           Data.Set                   (Set)
 import           Data.Text                  (Text)
 import           Data.Void                  (absurd)
 import           GHC.Generics               (Generic)
+import           Pcf.Core.Func
 import           Pcf.V1.Functions
 import           Pcf.V1.Parser              (readExp, readSExp, readStmt)
 import           Pcf.V1.Types               (Exp, ExpC, ExpFC, ExpL, SExp, Stmt (..), Ty)

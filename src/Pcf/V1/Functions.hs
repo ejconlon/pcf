@@ -8,9 +8,9 @@ import           Bound.Name                 (Name (..))
 import           Control.Applicative        (Alternative (..))
 import           Control.Lens               (Lens', assign, over, use, view)
 import           Control.Monad              (unless)
-import           Control.Monad.Except       (ExceptT, MonadError (..), runExceptT)
-import           Control.Monad.Reader       (MonadReader (..), ReaderT, runReaderT)
-import           Control.Monad.State.Strict (MonadState (..), StateT, modify, runStateT)
+import           Control.Monad.Except       (MonadError (..))
+import           Control.Monad.Reader       (MonadReader (..))
+import           Control.Monad.State.Strict (MonadState (..), modify)
 import           Control.Monad.Trans        (MonadTrans (..))
 import           Data.Foldable              (toList)
 import           Data.Functor               (($>))
@@ -26,6 +26,7 @@ import           Data.Vector                (Vector)
 import qualified Data.Vector                as V
 import           Data.Void                  (Void)
 import           GHC.Generics               (Generic)
+import           Pcf.Core.Func
 import           Pcf.V1.Types
 
 -- Utils
@@ -92,17 +93,6 @@ fix n a ty b = Fix (Name n ()) ty (abstract1 a b)
 
 fix' :: Text -> Ty -> Exp Text -> Exp Text
 fix' n = fix n n
-
--- Core context
-
-newtype FuncT r s e m a = FuncT { unFuncT :: ReaderT r (StateT s (ExceptT e m)) a }
-    deriving (Functor, Applicative, Monad, MonadReader r, MonadState s, MonadError e)
-
-instance MonadTrans (FuncT r s e) where
-    lift = FuncT . lift . lift . lift
-
-runFuncT :: FuncT r s e m a -> r -> s -> m (Either e (a, s))
-runFuncT act env st = runExceptT (runStateT (runReaderT (unFuncT act) env) st)
 
 -- Pure ops
 
