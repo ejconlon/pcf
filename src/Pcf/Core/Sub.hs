@@ -4,6 +4,7 @@ module Pcf.Core.Sub (
     Name (..),
     NameOnly,
     Scope (..),
+    ScopeFold (..),
     abstract,
     abstract1,
     apply,
@@ -16,6 +17,7 @@ module Pcf.Core.Sub (
     instantiate1,
     liftScope,
     matchBinder,
+    runScopeFold,
     scopeFreeVars,
     varScope,
     wrapScope
@@ -147,11 +149,14 @@ abstract ks = let n = V.length ks in subAbstract n ks . scopeShift n
 instantiate :: Functor f => Vector (Scope f a) -> Scope f a -> Scope f a
 instantiate = subInstantiate 0
 
-apply :: Functor f => Vector (Scope f a) -> Binder f a -> Maybe (Scope f a)
-apply vs (Binder (UnderBinder i e)) =
+rawApply :: Functor f => Vector (Scope f a) -> Int -> Scope f a -> Maybe (Scope f a)
+rawApply vs i e =
     if V.length vs == i
         then pure (scopeShift (-1) (instantiate vs e))
         else Nothing
+
+apply :: Functor f => Vector (Scope f a) -> Binder f a -> Maybe (Scope f a)
+apply vs (Binder (UnderBinder i e)) = rawApply vs i e
 
 abstract1 :: (Functor f, Eq a) => a -> Scope f a -> Binder f a
 abstract1 k = abstract (V.singleton k)
@@ -161,6 +166,27 @@ instantiate1 v = instantiate (V.singleton v)
 
 apply1 :: Functor f => Scope f a -> Binder f a -> Maybe (Scope f a)
 apply1 v = apply (V.singleton v)
+
+-- ScopeFold
+
+data ScopeFold f a r = ScopeFold
+    { sfFree :: a -> r
+    , sfBinder :: Int -> (Vector (Scope f a) -> r) -> r
+    , sfFunctor :: f (Scope f a) -> r
+    } deriving (Generic)
+
+-- TODO consider throwing from rawApply or in ScopeB match...
+runScopeFold :: Functor f => ScopeFold f a r -> r -> Scope f a -> r
+runScopeFold sf r s =
+    let go i e vs =
+            case rawApply vs i e of
+                Nothing -> r
+                Just s' -> runScopeFold sf r s'
+    in case unScope s of
+        ScopeB b -> r
+        ScopeF a -> sfFree sf a
+        ScopeA (UnderBinder i e) -> sfBinder sf i (go i e)
+        ScopeE fe -> sfFunctor sf fe
 
 -- Name
 

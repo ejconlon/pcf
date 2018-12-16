@@ -1,6 +1,5 @@
 module Pcf.V2.Types where
 
-import Data.Text (Text)
 import GHC.Generics (Generic)
 import Pcf.Core.Sub
 
