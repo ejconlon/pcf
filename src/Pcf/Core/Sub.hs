@@ -12,6 +12,7 @@ module Pcf.Core.Sub (
     binderArity,
     binderBody,
     binderFreeVars,
+    binderInfo,
     binderMapInfo,
     binderTraverseInfo,
     boundScope,

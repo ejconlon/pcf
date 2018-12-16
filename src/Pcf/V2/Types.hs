@@ -25,3 +25,5 @@ data ExpF a =
 data ExpN n = ExpN (NameOnly n) Ty deriving (Generic, Eq, Show)
 
 type Exp n a = Scope (ExpN n) ExpF a
+
+type ExpFold n a r = ScopeFold (ExpN n) ExpF a r
