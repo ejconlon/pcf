@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Pcf.Types where
+module Pcf.V1.Types where
 
 import Bound                (Scope, makeBound, (>>>=))
 import Bound.Name           (Name)

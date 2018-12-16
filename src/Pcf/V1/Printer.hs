@@ -1,10 +1,10 @@
-module Pcf.Printer (emit, repTy, printTy, repExp, printExp, repStmt, printStmt) where
+module Pcf.V1.Printer (emit, repTy, printTy, repExp, printExp, repStmt, printStmt) where
 
-import           Bound.Name    (Name (..))
-import           Data.Text     (Text)
-import qualified Data.Text     as Text
-import           Pcf.Functions (instantiateAndThen')
-import           Pcf.Types     (Exp (..), SExp (..), Stmt (..), Ty (..))
+import           Bound.Name       (Name (..))
+import           Data.Text        (Text)
+import qualified Data.Text        as Text
+import           Pcf.V1.Functions (instantiateAndThen')
+import           Pcf.V1.Types     (Exp (..), SExp (..), Stmt (..), Ty (..))
 
 emit :: SExp Text -> Text
 emit (SAtom t)  = t

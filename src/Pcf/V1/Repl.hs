@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Pcf.Repl where
+module Pcf.V1.Repl where
 
 import           Control.Concurrent         (threadDelay)
 import           Control.Exception          (Exception, SomeException)
@@ -15,10 +15,10 @@ import qualified Data.Map.Strict            as Map
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import           Data.Typeable              (Typeable)
-import           Pcf.Cli                    (Cli, Command, ReplDirective (..), execCli,
+import           Pcf.Core.Cli               (Cli, Command, ReplDirective (..), execCli,
                                              outputPartsLn, outputPretty, outputStrLn, repl)
-import           Pcf.Functions              (emptyFauxState)
-import           Pcf.Ops
+import           Pcf.V1.Functions           (emptyFauxState)
+import           Pcf.V1.Ops
 
 type Repl = Cli OpsData
 type ReplCommand = Command OpsData

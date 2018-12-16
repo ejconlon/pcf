@@ -1,9 +1,9 @@
-module Test.Pcf.SubTest where
+module Test.Pcf.Core.SubTest where
 
 import Control.Monad.Identity (Identity (..))
 import Data.Vector            as V
-import Pcf.Sub
-import Pcf.Sub.Internal
+import Pcf.Core.Sub
+import Pcf.Core.Sub.Internal
 import Test.Pcf.Assertions    ((@/=))
 import Test.Tasty
 import Test.Tasty.HUnit

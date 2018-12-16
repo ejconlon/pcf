@@ -1,12 +1,12 @@
 {-# LANGUAGE Rank2Types #-}
 
-module Test.Pcf.SimpleTest where
+module Test.Pcf.V1.SimpleTest where
 
 import           Bound               as B
 import           Bound.Name          (Name (..))
 import qualified Data.Set            as S
-import           Pcf.Functions
-import           Pcf.Types           (Exp (..), Ty (..))
+import           Pcf.V1.Functions
+import           Pcf.V1.Types        (Exp (..), Ty (..))
 import           Test.Pcf.Assertions ((@/=))
 import           Test.Tasty
 import           Test.Tasty.HUnit

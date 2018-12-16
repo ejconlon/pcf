@@ -1,4 +1,4 @@
-module Pcf.Ops where
+module Pcf.V1.Ops where
 
 import           Control.Lens               (assign, use)
 import           Control.Monad              (unless)
@@ -13,9 +13,9 @@ import           Data.Set                   (Set)
 import           Data.Text                  (Text)
 import           Data.Void                  (absurd)
 import           GHC.Generics               (Generic)
-import           Pcf.Functions
-import           Pcf.Parser                 (readExp, readSExp, readStmt)
-import           Pcf.Types                  (Exp, ExpC, ExpFC, ExpL, SExp, Stmt (..), Ty)
+import           Pcf.V1.Functions
+import           Pcf.V1.Parser              (readExp, readSExp, readStmt)
+import           Pcf.V1.Types               (Exp, ExpC, ExpFC, ExpL, SExp, Stmt (..), Ty)
 
 data OpsData = OpsData
     { decls :: Map Text Ty

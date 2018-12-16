@@ -1,5 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
-module Pcf.Sub (
+module Pcf.Core.Sub (
     Binder (..),
     Name (..),
     NameOnly,
@@ -21,17 +21,17 @@ module Pcf.Sub (
     wrapScope
 ) where
 
-import           Control.Monad       (ap)
-import           Control.Monad.Trans (MonadTrans (..))
-import           Data.Bifoldable     (bifoldr)
-import           Data.Bifunctor      (bimap)
-import           Data.Bitraversable  (bitraverse)
-import           Data.Foldable       (toList)
-import           Data.Maybe          (fromMaybe)
-import           Data.Vector         (Vector)
-import qualified Data.Vector         as V
-import           GHC.Generics        (Generic)
-import           Pcf.Sub.Internal
+import           Control.Monad         (ap)
+import           Control.Monad.Trans   (MonadTrans (..))
+import           Data.Bifoldable       (bifoldr)
+import           Data.Bifunctor        (bimap)
+import           Data.Bitraversable    (bitraverse)
+import           Data.Foldable         (toList)
+import           Data.Maybe            (fromMaybe)
+import           Data.Vector           (Vector)
+import qualified Data.Vector           as V
+import           GHC.Generics          (Generic)
+import           Pcf.Core.Sub.Internal
 
 -- Scope
 

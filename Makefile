@@ -1,3 +1,12 @@
+build:
+	stack build
+
+test:
+	stack test
+
+repl:
+	stack build && stack exec pcf-exe
+
 deps:
 	stack install apply-refact hlint intero stylish-haskell
 

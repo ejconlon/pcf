@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module Pcf.Cli where
+module Pcf.Core.Cli where
 
 import           Control.Monad                           (unless)
 import           Control.Monad.Catch                     (MonadCatch (..), MonadThrow (..))

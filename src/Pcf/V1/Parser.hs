@@ -1,4 +1,4 @@
-module Pcf.Parser (readExp, readStmt, readTy, readSExp, sexpParser) where
+module Pcf.V1.Parser (readExp, readStmt, readTy, readSExp, sexpParser) where
 
 import           Bound                      (abstract1)
 import           Bound.Name                 (Name (..))
@@ -9,7 +9,7 @@ import           Data.Set                   (Set)
 import qualified Data.Set                   as Set
 import           Data.Text                  (Text)
 import           Data.Void                  (Void)
-import           Pcf.Types                  (Exp (..), SExp (..), Stmt (..), Ty (..))
+import           Pcf.V1.Types               (Exp (..), SExp (..), Stmt (..), Ty (..))
 import qualified Text.Megaparsec            as MP
 import qualified Text.Megaparsec.Char       as MPC
 import qualified Text.Megaparsec.Char.Lexer as MPCL

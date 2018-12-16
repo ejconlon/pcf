@@ -1,4 +1,4 @@
-module Pcf.Sub.Internal where
+module Pcf.Core.Sub.Internal where
 
 import Data.Bifoldable    (Bifoldable (..))
 import Data.Bifunctor     (Bifunctor (..))

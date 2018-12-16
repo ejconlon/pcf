@@ -1,6 +1,6 @@
 {-# LANGUAGE Rank2Types #-}
 
-module Pcf.Functions where
+module Pcf.V1.Functions where
 
 import           Bound                      (Scope (..), Var (B), abstract, abstract1,
                                              instantiate, instantiate1, (>>>=))
@@ -26,7 +26,7 @@ import           Data.Vector                (Vector)
 import qualified Data.Vector                as V
 import           Data.Void                  (Void)
 import           GHC.Generics               (Generic)
-import           Pcf.Types
+import           Pcf.V1.Types
 
 -- Utils
 
