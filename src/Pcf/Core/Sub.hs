@@ -115,17 +115,17 @@ scopeFreeVars = V.fromList . toList
 scopeMapInfo :: Functor f => (n -> o) -> Scope n f a -> Scope o f a
 scopeMapInfo f s =
     case unScope s of
-        ScopeB b -> Scope (ScopeB b)
-        ScopeF a -> Scope (ScopeF a)
-        ScopeA b -> Scope (ScopeA (unBinder (binderMapInfo f (Binder b))))
+        ScopeB b  -> Scope (ScopeB b)
+        ScopeF a  -> Scope (ScopeF a)
+        ScopeA b  -> Scope (ScopeA (unBinder (binderMapInfo f (Binder b))))
         ScopeE fe -> Scope (ScopeE (scopeMapInfo f <$> fe))
 
 scopeTraverseInfo :: (Traversable f, Applicative m) => (n -> m o) -> Scope n f a -> m (Scope o f a)
 scopeTraverseInfo f s =
     case unScope s of
-        ScopeB b -> pure (Scope (ScopeB b))
-        ScopeF a -> pure (Scope (ScopeF a))
-        ScopeA b -> Scope . ScopeA . unBinder <$> binderTraverseInfo f (Binder b)
+        ScopeB b  -> pure (Scope (ScopeB b))
+        ScopeF a  -> pure (Scope (ScopeF a))
+        ScopeA b  -> Scope . ScopeA . unBinder <$> binderTraverseInfo f (Binder b)
         ScopeE fe -> Scope . ScopeE <$> traverse (scopeTraverseInfo f) fe
 
 -- Binder
@@ -222,9 +222,9 @@ apply1 v = apply (V.singleton v)
 runNiceScopeFold :: Functor f => (a -> r) -> (f (Scope n f a) -> r) -> r -> Scope n f a -> r
 runNiceScopeFold free functor other s =
     case unScope s of
-        ScopeB _ -> other
-        ScopeF a -> free a
-        ScopeA _ -> other
+        ScopeB _  -> other
+        ScopeF a  -> free a
+        ScopeA _  -> other
         ScopeE fe -> functor fe
 
 -- Name

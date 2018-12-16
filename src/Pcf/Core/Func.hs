@@ -1,11 +1,11 @@
 module Pcf.Core.Func where
 
-import           Control.Monad.Identity     (Identity)
-import           Control.Monad.IO.Class     (MonadIO (..))
-import           Control.Monad.Except       (ExceptT, MonadError (..), runExceptT)
-import           Control.Monad.Reader       (MonadReader (..), ReaderT, runReaderT)
-import           Control.Monad.State.Strict (MonadState (..), StateT, modify, runStateT)
-import           Control.Monad.Trans        (MonadTrans (..))
+import Control.Monad.Except       (ExceptT, MonadError (..), runExceptT)
+import Control.Monad.Identity     (Identity)
+import Control.Monad.IO.Class     (MonadIO (..))
+import Control.Monad.Reader       (MonadReader (..), ReaderT, runReaderT)
+import Control.Monad.State.Strict (MonadState (..), StateT, modify, runStateT)
+import Control.Monad.Trans        (MonadTrans (..))
 
 newtype FuncT r s e m a = FuncT { unFuncT :: ReaderT r (StateT s (ExceptT e m)) a }
     deriving (Functor, Applicative, Monad, MonadReader r, MonadState s, MonadError e, MonadIO)

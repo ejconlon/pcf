@@ -1,16 +1,16 @@
 module Pcf.V2.Functions where
 
-import           Control.Lens               (Lens', assign, over, use, view)
-import           Control.Monad              (unless)
-import           Control.Monad.Except       (MonadError (..))
+import           Control.Lens          (Lens', assign, over, use, view)
+import           Control.Monad         (unless)
+import           Control.Monad.Except  (MonadError (..))
 -- import           Control.Monad.Reader       (MonadReader (..))
 -- import           Control.Monad.State.Strict (MonadState (..), modify)
 -- import           Control.Monad.Trans        (MonadTrans (..))
-import           Data.Functor               (($>))
-import           Data.Generics.Product      (field)
-import           Data.Map                   (Map)
-import qualified Data.Map                   as M
-import           GHC.Generics               (Generic)
+import           Data.Functor          (($>))
+import           Data.Generics.Product (field)
+import           Data.Map              (Map)
+import qualified Data.Map              as M
+import           GHC.Generics          (Generic)
 import           Pcf.Core.Func
 import           Pcf.Core.Sub
 import           Pcf.V2.Types
