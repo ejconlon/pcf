@@ -65,6 +65,16 @@ tySF = ScopeFold bound free binder functor where
             Just s  -> localMod (field @"teTyMap") (M.insert a ty) (Arr ty <$> typeCheck s)
 
     functor = \case
+        App f x -> do
+            fTy <- typeCheck f
+            case fTy of
+                Arr aTy bTy -> assertTy aTy x $> bTy
+                _           -> throwError (AppNotArrError fTy)
+        Ifz g t e -> do
+            assertTy Nat g
+            tTy <- typeCheck t
+            assertTy (Arr Nat tTy) e
+            pure tTy
         Suc e -> assertTy Nat e $> Nat
         Zero -> pure Nat
 
