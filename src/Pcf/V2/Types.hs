@@ -1,6 +1,20 @@
 module Pcf.V2.Types where
 
+import Data.Text (Text)
+import GHC.Generics (Generic)
 import Pcf.Core.Sub
+
+-- SExp
+
+data SExp a = SAtom a | SList [SExp a] deriving (Generic, Eq, Show, Functor, Foldable, Traversable)
+
+-- Ty
+
+data Ty =
+      Arr Ty Ty
+    | Nat deriving (Generic, Eq, Show)
+
+-- Exp
 
 data ExpF n a =
       App a a
@@ -8,7 +22,7 @@ data ExpF n a =
     | Zero
     | Suc a
     | Lam (NameOnly n) a
-    deriving (Eq, Show, Functor, Foldable, Traversable)
+    deriving (Generic, Eq, Show, Functor, Foldable, Traversable)
 
 type Exp n a = Scope (ExpF n) a
 
