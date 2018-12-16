@@ -21,6 +21,7 @@ module Pcf.Core.Sub (
     instantiate1,
     liftScope,
     matchBinder,
+    matchFunctor,
     scopeFreeVars,
     scopeMapInfo,
     scopeTraverseInfo,
@@ -127,6 +128,10 @@ scopeTraverseInfo f s =
         ScopeF a  -> pure (Scope (ScopeF a))
         ScopeA b  -> Scope . ScopeA . unBinder <$> binderTraverseInfo f (Binder b)
         ScopeE fe -> Scope . ScopeE <$> traverse (scopeTraverseInfo f) fe
+
+matchFunctor :: Scope n f a -> Maybe (f (Scope n f a))
+matchFunctor (Scope (ScopeE fe)) = pure fe
+matchFunctor _ = Nothing
 
 -- Binder
 

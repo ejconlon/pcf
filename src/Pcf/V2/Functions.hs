@@ -40,8 +40,8 @@ data TypeError a =
       CheckError Ty Ty
     | TypeMissingVarError a
     | AppNotArrError Ty
-    | TyUnboundErr Int
-    | TySubErr
+    | TyUnboundError Int
+    | TySubError
     deriving (Eq, Show)
 
 data TypeEnv n m a = TypeEnv
@@ -58,7 +58,7 @@ assertTy t e = do
 
 tySF :: (Monad m, Ord a) => ExpFold n a (TypeT n a m Ty)
 tySF = ScopeFold bound free binder functor where
-    bound = throwError . TyUnboundErr
+    bound = throwError . TyUnboundError
 
     free a = do
         tyMap <- view (field @"teTyMap")
@@ -68,7 +68,7 @@ tySF = ScopeFold bound free binder functor where
         let ExpN (Name n ()) ty = binderInfo b
         gen <- view (field @"teGen")
         a <- lift (gen n)
-        instantiateAndThen (field @"teTyMap") a ty b (throwError TySubErr) ((Arr ty <$>) . typeCheck)
+        instantiateAndThen (field @"teTyMap") a ty b (throwError TySubError) ((Arr ty <$>) . typeCheck)
 
     functor = \case
         App f x -> do
@@ -86,3 +86,62 @@ tySF = ScopeFold bound free binder functor where
 
 typeCheck :: (Monad m, Ord a) => Exp n a -> TypeT n a m Ty
 typeCheck = foldScope tySF
+
+-- Evaluation
+
+data EvalError n a =
+    EvalMissingVarError a
+  | NonNatGuardError (Exp n a)
+  | NonLamElseError (Exp n a)
+  | NonLamAppError (Exp n a)
+  | EvalUnboundError Int
+  | EvalSubError
+  deriving (Eq, Show)
+
+data EvalEnv n m a = EvalEnv
+  { eeGen    :: VarGen n m a
+  , eeExpMap :: Map a (Exp n a)
+  } deriving (Generic)
+
+type EvalT n a m = FuncT (EvalEnv n m a) () (EvalError n a) m
+
+bsSF :: (Monad m, Ord a) => ExpFold n a (EvalT n a m (Exp n a))
+bsSF = ScopeFold bound free binder functor where
+    bound = throwError . EvalUnboundError
+
+    free a = do
+        expMap <- view (field @"eeExpMap")
+        maybe (throwError (EvalMissingVarError a)) pure (M.lookup a expMap)
+
+    binder = pure . boundScope
+
+    functor = \case
+        App f x -> do
+            fv <- bigStep f
+            case matchBinder fv of
+                Just b -> do
+                    let n = nameKey (expName (binderInfo b))
+                    gen <- view (field @"eeGen")
+                    a <- lift (gen n)
+                    xv <- bigStep x
+                    instantiateAndThen (field @"eeExpMap") a xv b (throwError EvalSubError) bigStep
+                Nothing -> throwError (NonLamAppError fv)
+        Ifz g t e -> do
+            iv <- bigStep g
+            case matchFunctor iv of
+                Just Zero -> bigStep t
+                Just (Suc ev) -> do
+                    e' <- bigStep e
+                    case matchBinder e' of
+                        Just b -> do
+                            let n = nameKey (expName (binderInfo b))
+                            gen <- view (field @"eeGen")
+                            a <- lift (gen n)
+                            instantiateAndThen (field @"eeExpMap") a ev b (throwError EvalSubError) bigStep
+                        Nothing -> throwError (NonLamElseError e')
+                _ -> throwError (NonNatGuardError g)
+        Suc e -> wrapScope . Suc <$> bigStep e
+        Zero -> pure (liftScope Zero)
+
+bigStep :: (Monad m, Ord a) => Exp n a -> EvalT n a m (Exp n a)
+bigStep = foldScope bsSF
