@@ -8,11 +8,11 @@ import Test.Pcf.Assertions    ((@/=))
 import Test.Tasty
 import Test.Tasty.HUnit
 
-type BareScope = Scope () Identity Char
-type BareBinder = Binder () Identity Char
+type BareScope = Scope (NameOnly Char) Identity Char
+type BareBinder = Binder (NameOnly Char) Identity Char
 
 absBound :: Char -> BareScope -> BareBinder
-absBound = abstract1 ()
+absBound a = abstract1 (Name a ()) a
 
 absScope :: Char -> BareScope -> BareScope
 absScope a = boundScope . absBound a
@@ -59,12 +59,12 @@ test_sub =
         testAbstract = testCase "abstract" $ do
             svar @?= (Scope (ScopeF 'x') :: BareScope)
             sbound @?= (Scope (ScopeB 0) :: BareScope)
-            sfree @?= (Scope (ScopeA (UnderBinder 1 () (Scope (ScopeF 'x')))) :: BareScope)
-            sfree2 @?= (Scope (ScopeA (UnderBinder 1 () (Scope (ScopeA (UnderBinder 1 () (Scope (ScopeF 'x'))))))) :: BareScope)
-            sid @?= (Scope (ScopeA (UnderBinder 1 () (Scope (ScopeB 0)))) :: BareScope)
-            swonky @?= (Scope (ScopeA (UnderBinder 1 () (Scope (ScopeB 1)))) :: BareScope)
-            sconst @?= (Scope (ScopeA (UnderBinder 1 () (Scope (ScopeA (UnderBinder 1 () (Scope (ScopeB 1))))))) :: BareScope)
-            sflip @?= (Scope (ScopeA (UnderBinder 1 () (Scope (ScopeA (UnderBinder 1 () (Scope (ScopeB 0))))))) :: BareScope)
+            sfree @?= (Scope (ScopeA (UnderBinder 1 (Name 'y' ()) (Scope (ScopeF 'x')))) :: BareScope)
+            sfree2 @?= (Scope (ScopeA (UnderBinder 1 (Name 'z' ()) (Scope (ScopeA (UnderBinder 1 (Name 'y' ()) (Scope (ScopeF 'x'))))))) :: BareScope)
+            sid @?= (Scope (ScopeA (UnderBinder 1 (Name 'x' ()) (Scope (ScopeB 0)))) :: BareScope)
+            swonky @?= (Scope (ScopeA (UnderBinder 1 (Name 'x' ()) (Scope (ScopeB 1)))) :: BareScope)
+            sconst @?= (Scope (ScopeA (UnderBinder 1 (Name 'x' ()) (Scope (ScopeA (UnderBinder 1 (Name 'y' ()) (Scope (ScopeB 1))))))) :: BareScope)
+            sflip @?= (Scope (ScopeA (UnderBinder 1 (Name 'x' ()) (Scope (ScopeA (UnderBinder 1 (Name 'y' ()) (Scope (ScopeB 0))))))) :: BareScope)
 
         testInstantiate = testCase "instantiate" $ do
             instantiate1 svar2 svar @?= svar

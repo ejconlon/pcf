@@ -4,7 +4,7 @@ module Pcf.Core.Sub (
     Name (..),
     NameOnly,
     Scope (..),
-    -- ScopeFold (..),
+    ScopeFold (..),
     abstract,
     abstract1,
     apply,
@@ -15,12 +15,11 @@ module Pcf.Core.Sub (
     binderMapInfo,
     binderTraverseInfo,
     boundScope,
+    foldScope,
     instantiate,
     instantiate1,
     liftScope,
     matchBinder,
-    -- runScopeFold,
-    runNiceScopeFold,
     scopeFreeVars,
     scopeMapInfo,
     scopeTraverseInfo,
@@ -200,31 +199,19 @@ apply1 v = apply (V.singleton v)
 
 -- ScopeFold
 
--- data ScopeFold f a r = ScopeFold
---     { sfFree :: a -> r
---     , sfBinder :: Int -> (Vector (Scope f a) -> r) -> r
---     , sfFunctor :: f (Scope f a) -> r
---     } deriving (Generic)
+data ScopeFold n f a r = ScopeFold
+    { sfBound :: Int -> r
+    , sfFree :: a -> r
+    , sfBinder :: Binder n f a -> r
+    , sfFunctor :: f (Scope n f a) -> r
+    } deriving (Generic, Functor)
 
--- -- TODO consider throwing from rawApply or in ScopeB match...
--- runScopeFold :: Functor f => ScopeFold f a r -> r -> Scope f a -> r
--- runScopeFold sf r s =
---     let go i e vs =
---             case rawApply vs i e of
---                 Nothing -> r
---                 Just s' -> runScopeFold sf r s'
---     in case unScope s of
---         ScopeB b -> r
---         ScopeF a -> sfFree sf a
---         ScopeA (UnderBinder i e) -> sfBinder sf i (go i e)
---         ScopeE fe -> sfFunctor sf fe
-
-runNiceScopeFold :: Functor f => (a -> r) -> (f (Scope n f a) -> r) -> r -> Scope n f a -> r
-runNiceScopeFold free functor other s =
+foldScope :: Functor f => ScopeFold n f a r -> Scope n f a -> r
+foldScope (ScopeFold bound free binder functor) s =
     case unScope s of
-        ScopeB _  -> other
+        ScopeB b  -> bound b
         ScopeF a  -> free a
-        ScopeA _  -> other
+        ScopeA ub  -> binder (Binder ub)
         ScopeE fe -> functor fe
 
 -- Name

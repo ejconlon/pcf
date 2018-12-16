@@ -51,11 +51,13 @@ assertTy t e = do
     unless (u == t) (throwError (CheckError u t))
 
 typeCheck :: (Monad m, Ord a) => Exp n a -> TypeT n a m Ty
-typeCheck = runNiceScopeFold free functor (throwError TySubErr) where
-    free a = do
-        tyMap <- view (field @"teTyMap")
-        maybe (throwError (TypeMissingVarError a)) pure (M.lookup a tyMap)
+typeCheck = undefined
 
-    functor = \case
-        Suc e -> assertTy Nat e $> Nat
-        Zero -> pure Nat
+-- runNiceScopeFold free functor (throwError TySubErr) where
+--     free a = do
+--         tyMap <- view (field @"teTyMap")
+--         maybe (throwError (TypeMissingVarError a)) pure (M.lookup a tyMap)
+
+--     functor = \case
+--         Suc e -> assertTy Nat e $> Nat
+--         Zero -> pure Nat
