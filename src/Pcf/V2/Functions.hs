@@ -62,7 +62,7 @@ tySF = ScopeFold bound free binder functor where
         a <- lift (gen n)
         case apply1 (pure a) b of
             Nothing -> throwError TySubErr
-            Just s -> localMod (field @"teTyMap") (M.insert a ty) (Arr ty <$> typeCheck s)
+            Just s  -> localMod (field @"teTyMap") (M.insert a ty) (Arr ty <$> typeCheck s)
 
     functor = \case
         Suc e -> assertTy Nat e $> Nat

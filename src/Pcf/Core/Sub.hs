@@ -201,9 +201,9 @@ apply1 v = apply (V.singleton v)
 -- ScopeFold
 
 data ScopeFold n f a r = ScopeFold
-    { sfBound :: Int -> r
-    , sfFree :: a -> r
-    , sfBinder :: Binder n f a -> r
+    { sfBound   :: Int -> r
+    , sfFree    :: a -> r
+    , sfBinder  :: Binder n f a -> r
     , sfFunctor :: f (Scope n f a) -> r
     } deriving (Generic, Functor)
 
@@ -212,7 +212,7 @@ foldScope (ScopeFold bound free binder functor) s =
     case unScope s of
         ScopeB b  -> bound b
         ScopeF a  -> free a
-        ScopeA ub  -> binder (Binder ub)
+        ScopeA ub -> binder (Binder ub)
         ScopeE fe -> functor fe
 
 -- Name
