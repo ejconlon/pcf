@@ -1,34 +1,17 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module Pcf.V1.Repl where
 
-import           Control.Concurrent         (threadDelay)
-import           Control.Exception          (Exception, SomeException)
-import           Control.Monad              (forever, unless)
-import           Control.Monad.Catch        (catch, throwM)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.State.Strict (get, put)
-import           Data.Foldable              (for_)
-import           Data.Functor               (($>))
 import           Data.Map.Strict            (Map)
-import qualified Data.Map.Strict            as Map
-import           Data.Text                  (Text)
-import qualified Data.Text                  as Text
-import           Data.Typeable              (Typeable)
-import           Pcf.Core.Cli               (Cli, Command, ReplDirective (..), execCli,
-                                             outputPartsLn, outputPretty, outputStrLn, repl)
+import qualified Data.Map.Strict            as M
+import           Pcf.Core.Cli               (Cli, Command, ReplDirective(..), outputPartsLn, outputPretty, outputStrLn)
+import           Pcf.Core.NiceRepl          (OptionCommands, ReplDef (..), runRepl, throwCommandError)
 import           Pcf.V1.Functions           (emptyFauxState)
 import           Pcf.V1.Ops
 
 type Repl = Cli OpsData
 type ReplCommand = Command OpsData
-
-data ReplExc =
-      ExpectedNoInputError
-    | MissingCommandError Text
-    | OpsError
-    deriving (Eq, Show, Typeable)
-instance Exception ReplExc
+type ReplOptionCommands = OptionCommands OpsData
 
 liftOpsT :: OpsT IO a -> Repl (Either OpsExc a)
 liftOpsT act = do
@@ -44,22 +27,8 @@ quickOpsT act = do
         Left e -> do
             outputStrLn "OPS ERROR:"
             outputPretty e
-            throwM OpsError
+            throwCommandError
         Right a -> pure a
-
-printCatch :: Command s -> Command s
-printCatch command input = catch (command input) $ \(e :: ReplExc) -> do
-    outputStrLn "REPL ERROR: "
-    outputPretty e
-    pure ReplContinue
-
-type OptionCommands = Map Text (Text, ReplCommand)
-
-assertEmpty :: Text -> Repl ()
-assertEmpty input = unless (Text.null input) (throwM ExpectedNoInputError)
-
-bareCommand :: Repl ReplDirective -> ReplCommand
-bareCommand cmd input = assertEmpty input >> cmd
 
 execCommand :: ReplCommand
 execCommand input = do
@@ -102,58 +71,10 @@ evalCommand input = do
     outputPretty v
     pure ReplContinue
 
-quitCommand :: ReplCommand
-quitCommand = bareCommand (pure ReplQuit)
-
-hangCommand :: ReplCommand
-hangCommand = bareCommand $ do
-    liftIO (forever (threadDelay maxBound))
-    pure ReplContinue
-
-clearCommand :: ReplCommand
-clearCommand = bareCommand $ do
-    quickOpsT clear
-    pure ReplContinue
-
-helpCommand :: ReplCommand
-helpCommand = bareCommand $ do
-    outputStrLn "Available commands:"
-    for_ (Map.toList optionCommands) $ \(name, (desc, _)) -> outputPartsLn [":", name, "\t", desc]
-    pure ReplContinue
-
-dumpCommand :: ReplCommand
-dumpCommand = bareCommand $ do
-    outputStrLn "Repl state:"
-    s <- get
-    outputPretty s
-    pure ReplContinue
-
-optionCommands :: OptionCommands
-optionCommands = Map.fromList
-    [ ("quit", ("quit", quitCommand))
-    , ("hang", ("hang the interpreter (for testing)", hangCommand))
-    , ("clear", ("clear decl/defn history", clearCommand))
-    , ("help", ("describe all commands", helpCommand))
-    , ("eval", ("evaluate an expression", evalCommand))
-    , ("exec", ("execute a statement", execCommand))
-    , ("dump", ("dump debug state", dumpCommand))
+additionalOptions :: ReplOptionCommands
+additionalOptions = M.fromList
+    [ ("eval", ("evaluate an expression", evalCommand))
     ]
 
-outerCommand :: ReplCommand
-outerCommand input =
-    case Text.uncons input of
-        Just (':', rest) -> do
-            let (name, subInput) = Text.breakOn " " rest
-            case Map.lookup name optionCommands of
-                Nothing           -> throwM (MissingCommandError name)
-                Just (_, command) -> command (Text.drop 1 subInput)
-        _ -> execCommand input
-
-niceRepl :: Repl ()
-niceRepl = do
-    outputStrLn "Welcome to the PCF Repl."
-    outputStrLn "Enter `:quit` to exit or `:help` to see all commands."
-    repl "> " (printCatch outerCommand)
-
 main :: IO ()
-main = execCli niceRepl emptyOpsData $> ()
+main = runRepl (ReplDef "Welcome to the PCF V1 Repl." emptyOpsData additionalOptions execCommand)

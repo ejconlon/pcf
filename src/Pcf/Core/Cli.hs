@@ -15,6 +15,7 @@ import           Data.IORef                              (IORef, newIORef, readI
 import           Data.Text                               (Text)
 import qualified Data.Text                               as T
 import qualified Data.Text.IO                            as TIO
+import           GHC.Generics                            (Generic)
 import qualified System.Console.Haskeline                as H
 import qualified System.Console.Haskeline.MonadException as HE
 import           Text.Pretty.Simple                      (pPrint)
@@ -59,7 +60,18 @@ outputShow = liftIO . print
 outputPretty :: Show a => a -> Cli s ()
 outputPretty = pPrint
 
-data ReplDirective = ReplQuit | ReplContinue deriving (Eq, Show)
+runCli :: Cli s a -> s -> IO (a, s)
+runCli cli initState = do
+    ref <- newIORef initState
+    let actReader = H.runInputT H.defaultSettings (H.withInterrupt (unCli cli))
+    result <- runReaderT actReader ref
+    finalState <- readIORef ref
+    pure (result, finalState)
+
+execCli :: Cli s () -> s -> IO s
+execCli cli initState = snd <$> runCli cli initState
+
+data ReplDirective = ReplQuit | ReplContinue deriving (Generic, Eq, Show)
 
 type Command s = Text -> Cli s ReplDirective
 
@@ -76,14 +88,3 @@ repl prompt command = loop where
                     case directive of
                         ReplQuit     -> pure ()
                         ReplContinue -> loop
-
-runCli :: Cli s a -> s -> IO (a, s)
-runCli cli initState = do
-    ref <- newIORef initState
-    let actReader = H.runInputT H.defaultSettings (H.withInterrupt (unCli cli))
-    result <- runReaderT actReader ref
-    finalState <- readIORef ref
-    pure (result, finalState)
-
-execCli :: Cli s () -> s -> IO s
-execCli cli initState = snd <$> runCli cli initState
