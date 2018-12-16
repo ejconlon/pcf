@@ -150,7 +150,7 @@ instantiate = subInstantiate 0
 apply :: Functor f => Vector (Scope f a) -> Binder f a -> Maybe (Scope f a)
 apply vs (Binder (UnderBinder i e)) =
     if V.length vs == i
-        then pure (instantiate vs e)
+        then pure (scopeShift (-1) (instantiate vs e))
         else Nothing
 
 abstract1 :: (Functor f, Eq a) => a -> Scope f a -> Binder f a

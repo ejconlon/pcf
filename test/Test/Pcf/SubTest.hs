@@ -48,17 +48,17 @@ test_core :: TestTree
 test_core =
     let svar = pure 'x' :: BareScope
         sbound = boundVar 0 :: BareScope
-        bfree = abstract1 'y' svar :: BareBinder
+        bfree = abstract1 'y' (pure 'x') :: BareBinder
         sfree = boundScope bfree
-        bfree2 = abstract1 'z' sfree :: BareBinder
+        bfree2 = abstract1 'z' (bareLamCtor 'y' (pure 'x')) :: BareBinder
         sfree2 = boundScope bfree2
-        bid = abstract1 'x' svar :: BareBinder
+        bid = abstract1 'x' (pure 'x') :: BareBinder
         sid = boundScope bid
-        bwonky = abstract1 'x' sbound :: BareBinder
+        bwonky = abstract1 'x' (boundVar 0) :: BareBinder
         swonky = boundScope bwonky
-        bconst = abstract1 'x' sfree :: BareBinder
+        bconst = abstract1 'x' (bareLamCtor 'y' (pure 'x')) :: BareBinder
         sconst = boundScope bconst
-        bflip = abstract1 'y' sid :: BareBinder
+        bflip = abstract1 'x' (bareLamCtor 'y' (pure 'y')) :: BareBinder
         sflip = boundScope bflip
 
         testAbstract = testCase "abstract" $ do
@@ -71,17 +71,23 @@ test_core =
             sconst @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeA (UnderBinder 1 (Scope (ScopeB 1))))))) :: BareScope)
             sflip @?= (Scope (ScopeA (UnderBinder 1 (Scope (ScopeA (UnderBinder 1 (Scope (ScopeB 0))))))) :: BareScope)
 
-        testInstantiate = testCase "instantiate" $ do
-            1 @?= 1
-            -- let bvar2 = pure 'e' :: BareScope
-            -- instantiate1 bvar2 bvar @?= bvar
-            -- instantiate1 bvar2 bbound @?= bvar2
-            -- instantiate1 bvar2 bid @?= bbound
-            -- instantiate1 bvar2 bwonky @?= bvar2
-            -- instantiate1 bvar2 bconst @?= (bareLamCtor 'x' bvar2 :: BareScope)
-            -- instantiate1 bvar2 bflip @?= bflip
+        svar2 = pure 'e' :: BareScope
+        swonky2 = bareLamCtor 'x' svar2 :: BareScope
 
-    in testGroup "sub - core" [testAbstract, testInstantiate]
+        testInstantiate = testCase "instantiate" $ do
+            instantiate1 svar2 svar @?= svar
+            instantiate1 svar2 sbound @?= svar2
+            instantiate1 svar2 sid @?= sid
+            instantiate1 svar2 swonky @?= swonky2
+
+        testApply = testCase "apply" $ do
+            1 @?= 1
+            apply1 svar2 bid @?= pure svar2
+            apply1 svar2 bwonky @?= pure sbound
+            apply1 svar2 bconst @?= pure swonky2
+            apply1 svar2 bflip @?= pure sid
+
+    in testGroup "sub - core" [testAbstract, testInstantiate, testApply]
 
 -- Comprehensive tests
 
