@@ -4,7 +4,7 @@ module Pcf.Core.Sub (
     Name (..),
     NameOnly,
     Scope (..),
-    ScopeFold (..),
+    -- ScopeFold (..),
     abstract,
     abstract1,
     apply,
@@ -17,7 +17,8 @@ module Pcf.Core.Sub (
     instantiate1,
     liftScope,
     matchBinder,
-    runScopeFold,
+    -- runScopeFold,
+    runNiceScopeFold,
     scopeFreeVars,
     varScope,
     wrapScope
@@ -169,24 +170,32 @@ apply1 v = apply (V.singleton v)
 
 -- ScopeFold
 
-data ScopeFold f a r = ScopeFold
-    { sfFree :: a -> r
-    , sfBinder :: Int -> (Vector (Scope f a) -> r) -> r
-    , sfFunctor :: f (Scope f a) -> r
-    } deriving (Generic)
+-- data ScopeFold f a r = ScopeFold
+--     { sfFree :: a -> r
+--     , sfBinder :: Int -> (Vector (Scope f a) -> r) -> r
+--     , sfFunctor :: f (Scope f a) -> r
+--     } deriving (Generic)
 
--- TODO consider throwing from rawApply or in ScopeB match...
-runScopeFold :: Functor f => ScopeFold f a r -> r -> Scope f a -> r
-runScopeFold sf r s =
-    let go i e vs =
-            case rawApply vs i e of
-                Nothing -> r
-                Just s' -> runScopeFold sf r s'
-    in case unScope s of
-        ScopeB b -> r
-        ScopeF a -> sfFree sf a
-        ScopeA (UnderBinder i e) -> sfBinder sf i (go i e)
-        ScopeE fe -> sfFunctor sf fe
+-- -- TODO consider throwing from rawApply or in ScopeB match...
+-- runScopeFold :: Functor f => ScopeFold f a r -> r -> Scope f a -> r
+-- runScopeFold sf r s =
+--     let go i e vs =
+--             case rawApply vs i e of
+--                 Nothing -> r
+--                 Just s' -> runScopeFold sf r s'
+--     in case unScope s of
+--         ScopeB b -> r
+--         ScopeF a -> sfFree sf a
+--         ScopeA (UnderBinder i e) -> sfBinder sf i (go i e)
+--         ScopeE fe -> sfFunctor sf fe
+
+runNiceScopeFold :: Functor f => (a -> r) -> (f (Scope f a) -> r) -> r -> Scope f a -> r
+runNiceScopeFold free functor other s =
+    case unScope s of
+        ScopeB _ -> other
+        ScopeF a -> free a
+        ScopeA _ -> other
+        ScopeE fe -> functor fe
 
 -- Name
 

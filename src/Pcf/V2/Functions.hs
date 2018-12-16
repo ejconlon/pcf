@@ -6,6 +6,7 @@ import           Control.Monad.Except       (MonadError (..))
 -- import           Control.Monad.Reader       (MonadReader (..))
 -- import           Control.Monad.State.Strict (MonadState (..), modify)
 -- import           Control.Monad.Trans        (MonadTrans (..))
+import           Data.Functor               (($>))
 import           Data.Generics.Product      (field)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as M
@@ -34,15 +35,15 @@ data TypeEnv n m a = TypeEnv
 
 type TypeT n a m = FuncT (TypeEnv n m a) () (TypeError a) m
 
-tySF :: (Monad m, Ord a) => ScopeFold (ExpF n) a (TypeT n a m Ty)
-tySF = ScopeFold free binder functor where
-    free a = do
-        tyMap <- view (field @"teTyMap")
-        maybe (throwError (TypeMissingVarError a)) pure (M.lookup a tyMap)
+-- tySF :: (Monad m, Ord a) => ScopeFold (ExpF n) a (TypeT n a m Ty)
+-- tySF = ScopeFold free binder functor where
+--     free a = do
+--         tyMap <- view (field @"teTyMap")
+--         maybe (throwError (TypeMissingVarError a)) pure (M.lookup a tyMap)
 
-    binder = undefined
+--     binder = undefined
 
-    functor = undefined
+--     functor = undefined
 
 assertTy :: (Monad m, Ord a) => Ty -> Exp n a -> TypeT n a m ()
 assertTy t e = do
@@ -50,7 +51,11 @@ assertTy t e = do
     unless (u == t) (throwError (CheckError u t))
 
 typeCheck :: (Monad m, Ord a) => Exp n a -> TypeT n a m Ty
-typeCheck = runScopeFold tySF (throwError TySubErr)
+typeCheck = runNiceScopeFold free functor (throwError TySubErr) where
+    free a = do
+        tyMap <- view (field @"teTyMap")
+        maybe (throwError (TypeMissingVarError a)) pure (M.lookup a tyMap)
 
--- typeCheck (Suc e) = assertTy Nat e $> Nat
--- typeCheck Zero = pure Nat
+    functor = \case
+        Suc e -> assertTy Nat e $> Nat
+        Zero -> pure Nat
