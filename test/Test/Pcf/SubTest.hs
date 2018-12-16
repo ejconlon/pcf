@@ -104,12 +104,12 @@ makeTests name lamb =
             sid @/= svar
 
         testFreeVars = testCase "free vars" $ do
-            freeVars sid @?= V.empty
-            freeVars sconst @?= V.empty
-            freeVars sfree @?= V.singleton 'z'
-            freeVars sfree2 @?= V.singleton 'e'
-            freeVars svar @?= V.singleton 'w'
-            freeVars svar2 @=? V.singleton 'u'
+            scopeFreeVars sid @?= V.empty
+            scopeFreeVars sconst @?= V.empty
+            scopeFreeVars sfree @?= V.singleton 'z'
+            scopeFreeVars sfree2 @?= V.singleton 'e'
+            scopeFreeVars svar @?= V.singleton 'w'
+            scopeFreeVars svar2 @=? V.singleton 'u'
 
         testVarSub = testCase "var sub" $ do
             (svar >>= const svar2) @?= svar2

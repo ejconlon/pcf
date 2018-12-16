@@ -6,14 +6,17 @@ module Pcf.Sub (
     Scope (..),
     abstract,
     abstract1,
+    apply,
+    apply1,
     binderArity,
     binderBody,
+    binderFreeVars,
     boundScope,
-    freeVars,
-    -- instantiate,
-    -- instantiate1
+    instantiate,
+    instantiate1,
     liftScope,
     matchBinder,
+    scopeFreeVars,
     varScope,
     wrapScope
 ) where
@@ -66,15 +69,15 @@ subScopeShift c d s@(Scope us) =
         ScopeE fe -> Scope (ScopeE (subScopeShift c d <$> fe))
 
 scopeShift :: Functor f => Int -> Scope f a -> Scope f a
-scopeShift d s = subScopeShift 0 d s
+scopeShift = subScopeShift 0
 
 scopeBind :: Functor f => Int -> Scope f a -> (a -> Scope f b) -> Scope f b
 scopeBind n s f =
     case unScope s of
-        ScopeB b   -> Scope (ScopeB b)
-        ScopeF a   -> scopeShift n (f a)
+        ScopeB b                 -> Scope (ScopeB b)
+        ScopeF a                 -> scopeShift n (f a)
         ScopeA (UnderBinder i e) -> Scope (ScopeA (UnderBinder i (scopeBind (n + i) e f)))
-        ScopeE fe  -> Scope (ScopeE ((\e -> scopeBind n e f) <$> fe))
+        ScopeE fe                -> Scope (ScopeE ((\e -> scopeBind n e f) <$> fe))
 
 scopeBindOpt :: Functor f => Int -> Scope f a -> (a -> Maybe (Scope f a)) -> Scope f a
 scopeBindOpt n s f = scopeBind n s (\a -> fromMaybe (varScope a) (f a))
@@ -98,8 +101,8 @@ liftScope = wrapScope . (pure <$>)
 boundScope :: Binder f a -> Scope f a
 boundScope = Scope . ScopeA . unBinder
 
-freeVars :: Foldable f => Scope f a -> Vector a
-freeVars = V.fromList . toList
+scopeFreeVars :: Foldable f => Scope f a -> Vector a
+scopeFreeVars = V.fromList . toList
 
 -- Binder
 
@@ -114,7 +117,7 @@ instance (Show (f (Scope f a)), Show a) => Show (Binder f a) where
 
 matchBinder :: Scope f a -> Maybe (Binder f a)
 matchBinder (Scope (ScopeA ub)) = pure (Binder ub)
-matchBinder _ = Nothing
+matchBinder _                   = Nothing
 
 binderArity :: Binder f a -> Int
 binderArity (Binder (UnderBinder a _)) = a
@@ -122,30 +125,42 @@ binderArity (Binder (UnderBinder a _)) = a
 binderBody :: Binder f a -> Scope f a
 binderBody (Binder (UnderBinder _ b)) = b
 
+binderFreeVars :: Foldable f => Binder f a -> Vector a
+binderFreeVars = scopeFreeVars . binderBody
+
 -- Abstraction and instantiation
 
 subAbstract :: (Functor f, Eq a) => Int -> Vector a -> Scope f a -> Binder f a
 subAbstract n ks s = Binder (UnderBinder n (scopeBindOpt 0 s ((Scope . ScopeB <$>) . flip V.elemIndex ks)))
 
--- subInstantiate :: Functor f => Int -> Vector (Scope f a) -> Scope f a -> Scope f a
--- subInstantiate n vs s =
---     case unScope s of
---         ScopeB b -> fromMaybe s (vs V.!? (b - n))
---         ScopeF _ -> s
---         ScopeA i e -> subInstantiate (n + i) (scopeShift i <$> vs) e
---         ScopeE fe -> Scope (ScopeE (subInstantiate n vs <$> fe))
+subInstantiate :: Functor f => Int -> Vector (Scope f a) -> Scope f a -> Scope f a
+subInstantiate n vs s =
+    case unScope s of
+        ScopeB b -> fromMaybe s (vs V.!? (b - n))
+        ScopeF _ -> s
+        ScopeA (UnderBinder i e) -> Scope (ScopeA (UnderBinder i (subInstantiate (n + i) (scopeShift i <$> vs) e)))
+        ScopeE fe -> Scope (ScopeE (subInstantiate n vs <$> fe))
 
 abstract :: (Functor f, Eq a) => Vector a -> Scope f a -> Binder f a
 abstract ks = let n = V.length ks in subAbstract n ks . scopeShift n
 
--- instantiate :: Functor f => Vector (Scope f a) -> Binder f a -> Scope f a
--- instantiate = subInstantiate 0
+instantiate :: Functor f => Vector (Scope f a) -> Scope f a -> Scope f a
+instantiate = subInstantiate 0
+
+apply :: Functor f => Vector (Scope f a) -> Binder f a -> Maybe (Scope f a)
+apply vs (Binder (UnderBinder i e)) =
+    if V.length vs == i
+        then pure (instantiate vs e)
+        else Nothing
 
 abstract1 :: (Functor f, Eq a) => a -> Scope f a -> Binder f a
 abstract1 k = abstract (V.singleton k)
 
--- instantiate1 :: Functor f => Scope f a -> Binder f a -> Scope f a
--- instantiate1 v = instantiate (V.singleton v)
+instantiate1 :: Functor f => Scope f a -> Scope f a -> Scope f a
+instantiate1 v = instantiate (V.singleton v)
+
+apply1 :: Functor f => Scope f a -> Binder f a -> Maybe (Scope f a)
+apply1 v = apply (V.singleton v)
 
 -- Name
 
