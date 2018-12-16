@@ -15,18 +15,13 @@ data Ty =
 
 -- Exp
 
-data ExpF n a =
+data ExpF a =
       App a a
     | Ifz a a a
     | Zero
     | Suc a
-    | Lam (NameOnly n) a
     deriving (Generic, Eq, Show, Functor, Foldable, Traversable)
 
-type Exp n a = Scope (ExpF n) a
+data ExpN n = ExpN (NameOnly n) Ty deriving (Generic, Eq, Show)
 
-lam' :: Eq a => n -> a -> Exp n a -> Exp n a
-lam' n a = wrapScope . Lam (Name n ()) . boundScope . abstract1 a
-
-lam :: Eq n => n -> Exp n n -> Exp n n
-lam n = lam' n n
+type Exp n a = Scope (ExpN n) ExpF a
