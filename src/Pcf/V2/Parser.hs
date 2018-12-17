@@ -7,7 +7,8 @@ import qualified Data.Set                   as Set
 import           Data.Text                  (Text)
 import           Data.Void                  (Void)
 import           Pcf.Core.Sub
-import           Pcf.V2.Types               (Exp (..), ExpF (..), ExpN (..), SExp (..), Stmt (..), Ty (..))
+import           Pcf.V2.Types               (Exp (..), ExpF (..), ExpN (..), SExp (..),
+                                             Stmt (..), Ty (..))
 import qualified Text.Megaparsec            as MP
 import qualified Text.Megaparsec.Char       as MPC
 import qualified Text.Megaparsec.Char.Lexer as MPCL
@@ -57,7 +58,7 @@ keywords :: Set Text
 keywords = Set.fromList ["ifz", "lam", "fix", "suc", "zero", "Nat", "->"]
 
 readExp :: Alternative m => SExp Text -> m (Exp Text Text)
-readExp (SAtom t) = pure (if t == "zero" then (wrapScope Zero) else (pure t))
+readExp (SAtom t) = pure (if t == "zero" then wrapScope Zero else pure t)
 readExp (SList ts) = go ts where
     go ts = case ts of
         [SAtom "suc", y] -> wrapScope . Suc <$> readExp y

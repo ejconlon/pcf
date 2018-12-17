@@ -17,7 +17,8 @@ import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import           Data.Typeable              (Typeable)
 import           GHC.Generics               (Generic)
-import           Pcf.Core.Cli               (Cli, Command, ReplDirective (..), execCli, outputPartsLn, outputPretty, outputStrLn, repl)
+import           Pcf.Core.Cli               (Cli, Command, ReplDirective (..), execCli,
+                                             outputPartsLn, outputPretty, outputStrLn, repl)
 
 data ReplExc =
       ExpectedNoInputError
@@ -89,15 +90,15 @@ outerCommand optionCommands execCommand input =
         _ -> execCommand input
 
 data ReplDef s = ReplDef
-    { rdGreeting :: Text
-    , rdInitState :: s
+    { rdGreeting           :: Text
+    , rdInitState          :: s
     , rdAdditionalCommands :: OptionCommands s
-    , rdExecCommand :: Command s
+    , rdExecCommand        :: Command s
     } deriving (Generic)
 
 niceRepl :: Show s => ReplDef s -> Cli s ()
 niceRepl (ReplDef greeting init addl exec) = do
-    let options = fix (\c -> (defaultOptions init c) <> addl)
+    let options = fix (\c -> defaultOptions init c <> addl)
         cmd = outerCommand options exec
     outputStrLn greeting
     outputStrLn "Enter `:quit` to exit or `:help` to see all commands."

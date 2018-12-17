@@ -1,9 +1,10 @@
 module Pcf.V2.Printer (emit, repTy, printTy, repExp, printExp, repStmt, printStmt) where
 
-import           Data.Text        (Text)
-import qualified Data.Text        as T
+import           Data.Text    (Text)
+import qualified Data.Text    as T
 import           Pcf.Core.Sub
-import           Pcf.V2.Types     (Exp (..), ExpF(..), ExpFold, ExpN (..), SExp (..), Stmt (..), Ty (..))
+import           Pcf.V2.Types (Exp (..), ExpF (..), ExpFold, ExpN (..), SExp (..), Stmt (..),
+                               Ty (..))
 
 emit :: SExp Text -> Text
 emit (SAtom t)  = t
@@ -13,7 +14,7 @@ unassoc :: (ThrowSub m, Monad m) => [SExp Text] -> Exp Text Text -> m (SExp Text
 unassoc ts e =
     case matchFunctor e of
         Just (App l r) -> (\r' -> unassoc (r' : ts) l) =<< repExp r
-        _ -> (\e' -> SList (e' : ts)) <$> repExp e
+        _              -> (\e' -> SList (e' : ts)) <$> repExp e
 
 repTy :: Ty -> SExp Text
 repTy Nat       = SAtom "Nat"

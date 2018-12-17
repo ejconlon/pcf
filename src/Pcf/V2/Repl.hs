@@ -4,8 +4,10 @@ import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.State.Strict (get, put)
 import           Data.Map.Strict            (Map)
 import qualified Data.Map.Strict            as M
-import           Pcf.Core.Cli               (Cli, Command, ReplDirective(..), outputPartsLn, outputPretty, outputStrLn)
-import           Pcf.Core.NiceRepl          (OptionCommands, ReplDef (..), runRepl, throwCommandError)
+import           Pcf.Core.Cli               (Cli, Command, ReplDirective (..), outputPartsLn,
+                                             outputPretty, outputStrLn)
+import           Pcf.Core.NiceRepl          (OptionCommands, ReplDef (..), runRepl,
+                                             throwCommandError)
 
 type Repl = Cli ()
 type ReplCommand = Command ()

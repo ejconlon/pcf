@@ -1,6 +1,6 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE Rank2Types           #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE Rank2Types #-}
 
 module Pcf.V2.Functions where
 

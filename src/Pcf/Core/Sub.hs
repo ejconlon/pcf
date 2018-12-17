@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Pcf.Core.Sub (
@@ -8,12 +8,9 @@ module Pcf.Core.Sub (
     Scope (..),
     ScopeFold (..),
     Sub,
-    -- SubT,
     SubError (..),
-    -- EmbedSub (..),
     ThrowSub (..),
     runSub,
-    -- runSubT,
     abstract,
     abstract1,
     apply,
@@ -27,9 +24,6 @@ module Pcf.Core.Sub (
     boundScope,
     closedFold,
     foldScope,
-    -- fromSub,
-    -- rethrowSub,
-    -- ignoreSub,
     instantiate,
     instantiate1,
     liftScope,
@@ -42,22 +36,17 @@ module Pcf.Core.Sub (
     wrapScope
 ) where
 
-import           Control.Applicative    (Alternative (..))
-import           Control.Monad          (ap)
-import           Control.Monad.Except   (Except, MonadError(..), runExcept)
--- import           Control.Monad.Identity (Identity (..))
--- import           Control.Monad.IO.Class (MonadIO (..))
-import           Control.Monad.Trans    (MonadTrans (..))
--- import           Control.Monad.Reader   (MonadReader (..))
--- import           Control.Monad.State.Strict (MonadState (..))
-import           Data.Bifoldable        (bifoldr)
-import           Data.Bifunctor         (bimap)
-import           Data.Bitraversable     (bitraverse)
-import           Data.Foldable          (toList)
-import           Data.Maybe             (fromMaybe)
-import           Data.Vector            (Vector)
-import qualified Data.Vector            as V
-import           GHC.Generics           (Generic)
+import           Control.Monad         (ap)
+import           Control.Monad.Except  (Except, MonadError (..), runExcept)
+import           Control.Monad.Trans   (MonadTrans (..))
+import           Data.Bifoldable       (bifoldr)
+import           Data.Bifunctor        (bimap)
+import           Data.Bitraversable    (bitraverse)
+import           Data.Foldable         (toList)
+import           Data.Maybe            (fromMaybe)
+import           Data.Vector           (Vector)
+import qualified Data.Vector           as V
+import           GHC.Generics          (Generic)
 import           Pcf.Core.Sub.Internal
 
 -- Sub
@@ -79,71 +68,6 @@ instance ThrowSub Sub where
 
 runSub :: Sub a -> Either SubError a
 runSub = runExcept . unSub
--- runSub = runIdentity . runSubT
-
--- newtype SubT m a = SubT { unSubT :: m (Either SubError a) }
-
--- instance Functor m => Functor (SubT m) where
---     fmap f (SubT mea) = SubT (fmap (fmap f) mea)
-
--- instance Applicative m => Applicative (SubT m) where
---     pure = SubT . pure . Right
---     SubT mef <*> SubT mea = SubT ((<*>) <$> mef <*> mea)
-
--- instance Monad m => Monad (SubT m) where
---     return = pure
---     SubT mea >>= f = SubT (mea >>= h) where
---         h ea =
---             case ea of
---                 Left e -> pure (Left e)
---                 Right a -> unSubT (f a)
-
--- instance MonadError e m => MonadError e (SubT m) where
---     throwError = lift . throwError
---     catchError act handle = SubT (catchError (unSubT act) (unSubT . handle))
-
--- instance MonadReader r m => MonadReader r (SubT m) where
---     ask   = lift ask
---     local f = SubT . local f . unSubT
---     reader = lift . reader
-
--- instance MonadState s m => MonadState s (SubT m) where
---     get = lift get
---     put = lift . put
---     state = lift . state
-
--- instance MonadIO m => MonadIO (SubT m) where
---     liftIO = lift . liftIO
-
--- type Sub a = SubT Identity a
-
--- runSubT :: SubT m a -> m (Either SubError a)
--- runSubT = unSubT
-
-
--- instance MonadTrans SubT where
---     lift = SubT . (pure <$>)
-
--- instance Applicative m => ThrowSub (SubT m) where
---     throwSub = SubT . pure . Left
-
--- handleSubT :: Monad m => (SubError -> m a) -> SubT m a -> m a
--- handleSubT handle act = runSubT act >>= either handle pure
-
--- throwSubT :: MonadError x m => (SubError -> x) -> SubT m a -> m a
--- throwSubT embed = handleSubT (throwError . embed)
-
--- ignoreSubT :: (Monad m, Alternative m) => SubT m a -> m a
--- ignoreSubT = handleSubT (const empty)
-
--- fromSub :: (SubError -> a) -> Sub a -> a
--- fromSub handle = either handle id . runSub
-
--- rethrowSub :: MonadError x m => (SubError -> x) -> Sub a -> m a
--- rethrowSub embed = either (throwError . embed) pure . runSub
-
--- ignoreSub :: Alternative m => Sub a -> m a
--- ignoreSub = either (const empty) pure . runSub
 
 -- Scope
 
@@ -234,12 +158,12 @@ scopeTraverseInfo f s =
 
 matchFunctor :: Scope n f a -> Maybe (f (Scope n f a))
 matchFunctor (Scope (ScopeE fe)) = pure fe
-matchFunctor _ = Nothing
+matchFunctor _                   = Nothing
 
 forceFunctor :: (ThrowSub m, Applicative m) => Scope n f a -> m (f (Scope n f a))
 forceFunctor s =
     case matchFunctor s of
-        Just x -> pure x
+        Just x  -> pure x
         Nothing -> throwSub FunctorMatchError
 
 -- Binder
@@ -260,7 +184,7 @@ matchBinder _                   = Nothing
 forceBinder :: (ThrowSub m, Applicative m) => Scope n f a -> m (Binder n f a)
 forceBinder s =
     case matchBinder s of
-        Just x -> pure x
+        Just x  -> pure x
         Nothing -> throwSub BinderMatchError
 
 binderArity :: Binder n f a -> Int
