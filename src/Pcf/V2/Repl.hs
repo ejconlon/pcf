@@ -53,9 +53,9 @@ evalCommand input = do
     fvs <- quickOpsT (freeVarsOps e)
     outputStrLn "Free vars: "
     outputPretty fvs
-    -- ec <- quickOpsT (closConvOps e)
-    -- outputStrLn "Clos conv: "
-    -- outputPretty ec
+    ec <- quickOpsT (closConvOps e)
+    outputStrLn "Clos conv: "
+    outputPretty ec
     -- el <- quickOpsT (lambdaLiftOps ec)
     -- outputStrLn "Lambda lift: "
     -- outputPretty el

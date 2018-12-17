@@ -12,8 +12,12 @@ import           Control.Monad.Reader  (MonadReader (..))
 import           Control.Monad.Trans   (MonadTrans (..))
 import           Data.Functor          (($>))
 import           Data.Generics.Product (field)
+import           Data.Foldable         (toList)
+import           Data.List             (foldl')
 import           Data.Map              (Map)
 import qualified Data.Map              as M
+import           Data.Vector           (Vector)
+import qualified Data.Vector           as V
 import           GHC.Generics          (Generic)
 import           Pcf.Core.Func
 import           Pcf.Core.Sub
@@ -24,12 +28,28 @@ import           Pcf.V2.Types
 localMod :: MonadReader x m => (Lens' x y) -> (y -> y) -> m z -> m z
 localMod lens mod = local (over lens mod)
 
+insertOnce :: Eq a => Vector a -> a -> Vector a
+insertOnce vs a = if V.elem a vs then vs else V.snoc vs a
+
+insertOnceWithout :: Eq a => a -> Vector a -> a -> Vector a
+insertOnceWithout v vs a = if a == v then vs else insertOnce vs a
+
 -- Scope manipulation
 
 instantiateAndThen :: (ThrowSub m, MonadReader x m, Functor f, Ord a) => (Lens' x (Map a w)) -> a -> w -> Binder n f a -> (Scope n f a -> m r) -> m r
 instantiateAndThen lens a w b f = do
     s <- apply1 (pure a) b
     localMod lens (M.insert a w) (f s)
+
+scopeRebind :: (ThrowSub m, Monad m, Functor f, Functor g, Foldable g, Eq a) => a -> Binder n f a -> (Scope n f a -> m (Scope n g a)) -> m (Vector a, Binder n g a)
+scopeRebind a b f = do
+    s <- apply1 (pure a) b
+    t <- f s
+    let fvs = foldl' (insertOnceWithout a) V.empty (toList t)
+        fvs' = V.snoc fvs a
+        n = binderInfo b
+        t' = abstract n fvs' t
+    pure (fvs, t')
 
 -- VarGen
 
@@ -61,7 +81,7 @@ assertTy t e = do
 
 typeCheck :: (Monad m, Ord a) => Exp n a -> TypeT n a m Ty
 typeCheck = foldScope sf where
-    sf = closedFold free binder functor
+    sf = boundFold free binder functor
 
     free a = do
         tyMap <- view (field @"teTyMap")
@@ -109,7 +129,7 @@ instance Monad m => ThrowSub (EvalT n a m) where
 
 bigStep :: (Monad m, Ord a) => Exp n a -> EvalT n a m (Exp n a)
 bigStep = foldScope sf where
-    sf = closedFold free binder functor
+    sf = boundFold free binder functor
 
     free a = do
         expMap <- view (field @"eeExpMap")
@@ -144,3 +164,32 @@ bigStep = foldScope sf where
                 _ -> throwError (NonNatGuardError g)
         Suc e -> wrapScope . Suc <$> bigStep e
         Zero -> pure (liftScope Zero)
+
+-- Closure conversion
+
+data ConvEnv n m a = ConvEnv
+    { ceGen :: VarGen n m a
+    } deriving (Generic)
+
+type ConvT n a m = FuncT (ConvEnv n m a) () SubError m
+
+instance Monad m => ThrowSub (ConvT n a m) where
+    throwSub = throwError
+
+closConv :: (Monad m, Eq a) => Exp n a -> ConvT n a m (ExpC n a)
+closConv = foldScope sf where
+    sf = boundFold (pure . pure) binder functor
+
+    binder b = do
+        let i = binderInfo b
+            n = nameKey (expName i)
+        gen <- view (field @"ceGen")
+        a <- lift (gen n)
+        (vs, b') <- scopeRebind a b closConv
+        pure (wrapScope (ClosC (pure <$> vs) (boundScope b')))
+
+    functor f = (wrapScope <$>) $ case f of
+        App f x -> AppC <$> closConv f <*> closConv x
+        Ifz g t e -> IfzC <$> closConv g <*> closConv t <*> closConv e
+        Suc e -> SucC <$> closConv e
+        Zero -> pure ZeroC

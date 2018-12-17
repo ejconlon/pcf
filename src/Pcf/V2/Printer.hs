@@ -3,8 +3,7 @@ module Pcf.V2.Printer (emit, repTy, printTy, repExp, printExp, repStmt, printStm
 import           Data.Text    (Text)
 import qualified Data.Text    as T
 import           Pcf.Core.Sub
-import           Pcf.V2.Types (Exp (..), ExpF (..), ExpFold, ExpN (..), SExp (..), Stmt (..),
-                               Ty (..))
+import           Pcf.V2.Types (Exp (..), ExpF (..), ExpN (..), SExp (..), Stmt (..), Ty (..))
 
 emit :: SExp Text -> Text
 emit (SAtom t)  = t
@@ -25,7 +24,7 @@ printTy = emit . repTy
 
 repExp :: (ThrowSub m, Monad m) => Exp Text Text -> m (SExp Text)
 repExp = foldScope sf where
-    sf = closedFold free binder functor
+    sf = boundFold free binder functor
 
     free = pure . SAtom
 

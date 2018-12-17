@@ -22,7 +22,7 @@ module Pcf.Core.Sub (
     binderMapInfo,
     binderTraverseInfo,
     boundScope,
-    closedFold,
+    boundFold,
     foldScope,
     instantiate,
     instantiate1,
@@ -254,8 +254,8 @@ data ScopeFold n f a r = ScopeFold
     , sfFunctor :: f (Scope n f a) -> r
     } deriving (Generic, Functor)
 
-closedFold :: ThrowSub m => (a -> m r) -> (Binder n f a -> m r) -> (f (Scope n f a) -> m r) -> ScopeFold n f a (m r)
-closedFold = ScopeFold (throwSub . UnboundError)
+boundFold :: ThrowSub m => (a -> m r) -> (Binder n f a -> m r) -> (f (Scope n f a) -> m r) -> ScopeFold n f a (m r)
+boundFold = ScopeFold (throwSub . UnboundError)
 
 foldScope :: Functor f => ScopeFold n f a r -> Scope n f a -> r
 foldScope (ScopeFold bound free binder functor) s =

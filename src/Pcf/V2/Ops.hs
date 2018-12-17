@@ -16,7 +16,7 @@ import           Data.Text                  (Text)
 import           Data.Void                  (absurd)
 import           GHC.Generics               (Generic)
 import           Pcf.Core.Func
-import           Pcf.Core.Sub               (scopeFreeVars)
+import           Pcf.Core.Sub               (SubError, scopeFreeVars)
 import           Pcf.V2.Functions
 import           Pcf.V2.Parser              (readExp, readSExp, readStmt)
 import           Pcf.V2.Types
@@ -39,6 +39,7 @@ data OpsExc =
     | CannotParseSExp Text
     | WrapTypeError (TypeError Text)
     | WrapEvalError (EvalError Text Text)
+    | WrapConvError SubError
     deriving (Generic, Eq, Show)
 
 newtype OpsT m a = OpsT { unOps :: ExceptT OpsExc (StateT OpsData m) a }
@@ -61,8 +62,8 @@ liftTypeT tyMap = (fst <$>) . liftFuncT (TypeEnv pure tyMap) () WrapTypeError
 liftEvalT :: Monad m => Map Text (Exp Text Text) -> EvalT Text Text m b -> OpsT m b
 liftEvalT expMap = (fst <$>) . liftFuncT (EvalEnv pure expMap) () WrapEvalError
 
--- liftConvT :: Monad m => ConvT Text m b -> OpsT m b
--- liftConvT = (fst <$>) . liftFuncT (ConvEnv pure) () absurd
+liftConvT :: Monad m => ConvT n n m b -> OpsT m b
+liftConvT = (fst <$>) . liftFuncT (ConvEnv pure) () WrapConvError
 
 -- liftLamLiftT :: Monad m => LamLiftT Text m b -> OpsT m b
 -- liftLamLiftT = (fst <$>) . liftFuncT (LamLiftEnv pure) () WrapLamLiftError
@@ -117,11 +118,11 @@ bigStepOps e = do
     defns <- use (field @"defns")
     liftEvalT defns (bigStep e)
 
-freeVarsOps :: Monad m => Exp Text Text -> OpsT m (Set Text)
+freeVarsOps :: (Monad m, Ord a) => Exp n a -> OpsT m (Set a)
 freeVarsOps = pure . scopeFreeVars
 
--- closConvOps :: Monad m => Exp Text -> OpsT m (ExpC Text)
--- closConvOps = liftConvT . closConv
+closConvOps :: (Monad m, Eq n) => Exp n n -> OpsT m (ExpC n n)
+closConvOps = liftConvT . closConv
 
 -- lambdaLiftOps :: Monad m => ExpC Text -> OpsT m (ExpL Text)
 -- lambdaLiftOps = liftLamLiftT . lambdaLift

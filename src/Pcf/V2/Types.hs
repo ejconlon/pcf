@@ -1,5 +1,6 @@
 module Pcf.V2.Types where
 
+import Data.Vector (Vector)
 import GHC.Generics (Generic)
 import Pcf.Core.Sub
 
@@ -26,8 +27,6 @@ data ExpN n = ExpN { expName :: NameOnly n, expTy :: Ty } deriving (Generic, Eq,
 
 type Exp n a = Scope (ExpN n) ExpF a
 
-type ExpFold n a r = ScopeFold (ExpN n) ExpF a r
-
 -- NOTE: Is this the best way to compose?
 -- data InfoF a = Info Int a deriving (Generic, Eq, Show, Functor, Foldable, Traversable)
 -- type F = Compose InfoF ExpF
@@ -40,3 +39,15 @@ data Stmt n a =
     Decl n Ty
   | Defn n (Exp n a)
   deriving (Generic, Eq, Show, Functor, Foldable, Traversable)
+
+-- ExpC
+
+data ExpCF a =
+    AppC a a
+  | IfzC a a a
+  | SucC a
+  | ZeroC
+  | ClosC (Vector a) a
+  deriving (Generic, Eq, Show, Functor, Foldable, Traversable)
+
+type ExpC n a = Scope (ExpN n) ExpCF a
