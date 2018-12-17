@@ -1,6 +1,6 @@
 module Pcf.V2.Types where
 
-import Data.Vector (Vector)
+import Data.Vector  (Vector)
 import GHC.Generics (Generic)
 import Pcf.Core.Sub
 

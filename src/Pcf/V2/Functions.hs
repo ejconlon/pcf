@@ -10,9 +10,9 @@ import           Control.Monad.Except  (MonadError (..))
 import           Control.Monad.Reader  (MonadReader (..))
 -- import           Control.Monad.State.Strict (MonadState (..), modify)
 import           Control.Monad.Trans   (MonadTrans (..))
+import           Data.Foldable         (toList)
 import           Data.Functor          (($>))
 import           Data.Generics.Product (field)
-import           Data.Foldable         (toList)
 import           Data.List             (foldl')
 import           Data.Map              (Map)
 import qualified Data.Map              as M
@@ -189,7 +189,7 @@ closConv = foldScope sf where
         pure (wrapScope (ClosC (pure <$> vs) (boundScope b')))
 
     functor f = (wrapScope <$>) $ case f of
-        App f x -> AppC <$> closConv f <*> closConv x
+        App f x   -> AppC <$> closConv f <*> closConv x
         Ifz g t e -> IfzC <$> closConv g <*> closConv t <*> closConv e
-        Suc e -> SucC <$> closConv e
-        Zero -> pure ZeroC
+        Suc e     -> SucC <$> closConv e
+        Zero      -> pure ZeroC
