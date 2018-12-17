@@ -1,10 +1,19 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 module Pcf.Core.Sub (
     Binder (..),
     Name (..),
     NameOnly,
     Scope (..),
     ScopeFold (..),
+    Sub,
+    -- SubT,
+    SubError (..),
+    -- EmbedSub (..),
+    ThrowSub (..),
+    runSub,
+    -- runSubT,
     abstract,
     abstract1,
     apply,
@@ -16,7 +25,11 @@ module Pcf.Core.Sub (
     binderMapInfo,
     binderTraverseInfo,
     boundScope,
+    closedFold,
     foldScope,
+    -- fromSub,
+    -- rethrowSub,
+    -- ignoreSub,
     instantiate,
     instantiate1,
     liftScope,
@@ -29,9 +42,14 @@ module Pcf.Core.Sub (
     wrapScope
 ) where
 
+import           Control.Applicative    (Alternative (..))
 import           Control.Monad          (ap)
-import           Control.Monad.Identity (Identity (..))
+import           Control.Monad.Except   (Except, MonadError(..), runExcept)
+-- import           Control.Monad.Identity (Identity (..))
+-- import           Control.Monad.IO.Class (MonadIO (..))
 import           Control.Monad.Trans    (MonadTrans (..))
+-- import           Control.Monad.Reader   (MonadReader (..))
+-- import           Control.Monad.State.Strict (MonadState (..))
 import           Data.Bifoldable        (bifoldr)
 import           Data.Bifunctor         (bimap)
 import           Data.Bitraversable     (bitraverse)
@@ -41,6 +59,91 @@ import           Data.Vector            (Vector)
 import qualified Data.Vector            as V
 import           GHC.Generics           (Generic)
 import           Pcf.Core.Sub.Internal
+
+-- Sub
+
+data SubError =
+      ApplyError Int Int
+    | UnboundError Int
+    | FunctorMatchError
+    | BinderMatchError
+    deriving (Generic, Eq, Show)
+
+class ThrowSub m where
+    throwSub :: SubError -> m a
+
+newtype Sub a = Sub { unSub :: Except SubError a } deriving (Functor, Applicative, Monad)
+
+instance ThrowSub Sub where
+    throwSub = Sub . throwError
+
+runSub :: Sub a -> Either SubError a
+runSub = runExcept . unSub
+-- runSub = runIdentity . runSubT
+
+-- newtype SubT m a = SubT { unSubT :: m (Either SubError a) }
+
+-- instance Functor m => Functor (SubT m) where
+--     fmap f (SubT mea) = SubT (fmap (fmap f) mea)
+
+-- instance Applicative m => Applicative (SubT m) where
+--     pure = SubT . pure . Right
+--     SubT mef <*> SubT mea = SubT ((<*>) <$> mef <*> mea)
+
+-- instance Monad m => Monad (SubT m) where
+--     return = pure
+--     SubT mea >>= f = SubT (mea >>= h) where
+--         h ea =
+--             case ea of
+--                 Left e -> pure (Left e)
+--                 Right a -> unSubT (f a)
+
+-- instance MonadError e m => MonadError e (SubT m) where
+--     throwError = lift . throwError
+--     catchError act handle = SubT (catchError (unSubT act) (unSubT . handle))
+
+-- instance MonadReader r m => MonadReader r (SubT m) where
+--     ask   = lift ask
+--     local f = SubT . local f . unSubT
+--     reader = lift . reader
+
+-- instance MonadState s m => MonadState s (SubT m) where
+--     get = lift get
+--     put = lift . put
+--     state = lift . state
+
+-- instance MonadIO m => MonadIO (SubT m) where
+--     liftIO = lift . liftIO
+
+-- type Sub a = SubT Identity a
+
+-- runSubT :: SubT m a -> m (Either SubError a)
+-- runSubT = unSubT
+
+
+-- instance MonadTrans SubT where
+--     lift = SubT . (pure <$>)
+
+-- instance Applicative m => ThrowSub (SubT m) where
+--     throwSub = SubT . pure . Left
+
+-- handleSubT :: Monad m => (SubError -> m a) -> SubT m a -> m a
+-- handleSubT handle act = runSubT act >>= either handle pure
+
+-- throwSubT :: MonadError x m => (SubError -> x) -> SubT m a -> m a
+-- throwSubT embed = handleSubT (throwError . embed)
+
+-- ignoreSubT :: (Monad m, Alternative m) => SubT m a -> m a
+-- ignoreSubT = handleSubT (const empty)
+
+-- fromSub :: (SubError -> a) -> Sub a -> a
+-- fromSub handle = either handle id . runSub
+
+-- rethrowSub :: MonadError x m => (SubError -> x) -> Sub a -> m a
+-- rethrowSub embed = either (throwError . embed) pure . runSub
+
+-- ignoreSub :: Alternative m => Sub a -> m a
+-- ignoreSub = either (const empty) pure . runSub
 
 -- Scope
 
@@ -133,6 +236,12 @@ matchFunctor :: Scope n f a -> Maybe (f (Scope n f a))
 matchFunctor (Scope (ScopeE fe)) = pure fe
 matchFunctor _ = Nothing
 
+forceFunctor :: (ThrowSub m, Applicative m) => Scope n f a -> m (f (Scope n f a))
+forceFunctor s =
+    case matchFunctor s of
+        Just x -> pure x
+        Nothing -> throwSub FunctorMatchError
+
 -- Binder
 
 newtype Binder n f a = Binder { unBinder :: UnderBinder n (Scope n f a) }
@@ -148,14 +257,20 @@ matchBinder :: Scope n f a -> Maybe (Binder n f a)
 matchBinder (Scope (ScopeA ub)) = pure (Binder ub)
 matchBinder _                   = Nothing
 
+forceBinder :: (ThrowSub m, Applicative m) => Scope n f a -> m (Binder n f a)
+forceBinder s =
+    case matchBinder s of
+        Just x -> pure x
+        Nothing -> throwSub BinderMatchError
+
 binderArity :: Binder n f a -> Int
-binderArity (Binder (UnderBinder a _ _)) = a
+binderArity = ubArity . unBinder
 
 binderInfo :: Binder n f a -> n
-binderInfo (Binder (UnderBinder _ x _)) = x
+binderInfo = ubInfo . unBinder
 
 binderBody :: Binder n f a -> Scope n f a
-binderBody (Binder (UnderBinder _ _ b)) = b
+binderBody = ubBody . unBinder
 
 binderFreeVars :: Foldable f => Binder n f a -> Vector a
 binderFreeVars = scopeFreeVars . binderBody
@@ -185,13 +300,14 @@ abstract x ks = let n = V.length ks in subAbstract n x ks . scopeShift n
 instantiate :: Functor f => Vector (Scope n f a) -> Scope n f a -> Scope n f a
 instantiate = subInstantiate 0
 
-rawApply :: Functor f => Vector (Scope n f a) -> Int -> Scope n f a -> Maybe (Scope n f a)
+rawApply :: (ThrowSub m, Applicative m, Functor f) => Vector (Scope n f a) -> Int -> Scope n f a -> m (Scope n f a)
 rawApply vs i e =
-    if V.length vs == i
+    let len = V.length vs
+    in if len == i
         then pure (scopeShift (-1) (instantiate vs e))
-        else Nothing
+        else throwSub (ApplyError len i)
 
-apply :: Functor f => Vector (Scope n f a) -> Binder n f a -> Maybe (Scope n f a)
+apply :: (ThrowSub m, Applicative m, Functor f)  => Vector (Scope n f a) -> Binder n f a -> m (Scope n f a)
 apply vs (Binder (UnderBinder i _ e)) = rawApply vs i e
 
 abstract1 :: (Functor f, Eq a) => n -> a -> Scope n f a -> Binder n f a
@@ -200,7 +316,7 @@ abstract1 n k = abstract n (V.singleton k)
 instantiate1 :: Functor f => Scope n f a -> Scope n f a -> Scope n f a
 instantiate1 v = instantiate (V.singleton v)
 
-apply1 :: Functor f => Scope n f a -> Binder n f a -> Maybe (Scope n f a)
+apply1 :: (ThrowSub m, Applicative m, Functor f) => Scope n f a -> Binder n f a -> m (Scope n f a)
 apply1 v = apply (V.singleton v)
 
 -- ScopeFold
@@ -211,6 +327,9 @@ data ScopeFold n f a r = ScopeFold
     , sfBinder  :: Binder n f a -> r
     , sfFunctor :: f (Scope n f a) -> r
     } deriving (Generic, Functor)
+
+closedFold :: ThrowSub m => (a -> m r) -> (Binder n f a -> m r) -> (f (Scope n f a) -> m r) -> ScopeFold n f a (m r)
+closedFold = ScopeFold (throwSub . UnboundError)
 
 foldScope :: Functor f => ScopeFold n f a r -> Scope n f a -> r
 foldScope (ScopeFold bound free binder functor) s =

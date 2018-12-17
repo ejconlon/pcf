@@ -73,11 +73,10 @@ test_sub =
             instantiate1 svar2 swonky @?= swonky2
 
         testApply = testCase "apply" $ do
-            1 @?= 1
-            apply1 svar2 bid @?= pure svar2
-            apply1 svar2 bwonky @?= pure sbound
-            apply1 svar2 bconst @?= pure swonky2
-            apply1 svar2 bflip @?= pure sid
+            runSub (apply1 svar2 bid) @?= Right svar2
+            runSub (apply1 svar2 bwonky) @?= Right sbound
+            runSub (apply1 svar2 bconst) @?= Right swonky2
+            runSub (apply1 svar2 bflip) @?= Right sid
 
         testVarSub = testCase "var sub" $ do
             (svar >>= const svar2) @?= svar2

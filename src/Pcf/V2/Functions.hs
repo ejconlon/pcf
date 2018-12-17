@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE Rank2Types #-}
 
 module Pcf.V2.Functions where
@@ -24,11 +26,10 @@ localMod lens mod = local (over lens mod)
 
 -- Scope manipulation
 
-instantiateAndThen :: (MonadReader x m, Functor f, Ord a) => (Lens' x (Map a w)) -> a -> w -> Binder n f a -> m r -> (Scope n f a -> m r) -> m r
-instantiateAndThen lens a w b z f =
-    case apply1 (pure a) b of
-        Nothing -> z
-        Just s -> localMod lens (M.insert a w) (f s)
+instantiateAndThen :: (ThrowSub m, MonadReader x m, Functor f, Ord a) => (Lens' x (Map a w)) -> a -> w -> Binder n f a -> (Scope n f a -> m r) -> m r
+instantiateAndThen lens a w b f = do
+    s <- apply1 (pure a) b
+    localMod lens (M.insert a w) (f s)
 
 -- VarGen
 
@@ -40,9 +41,8 @@ data TypeError a =
       CheckError Ty Ty
     | TypeMissingVarError a
     | AppNotArrError Ty
-    | TyUnboundError Int
-    | TySubError
-    deriving (Eq, Show)
+    | TypeWrapSubError SubError
+    deriving (Generic, Eq, Show)
 
 data TypeEnv n m a = TypeEnv
     { teGen   :: VarGen n m a
@@ -51,14 +51,17 @@ data TypeEnv n m a = TypeEnv
 
 type TypeT n a m = FuncT (TypeEnv n m a) () (TypeError a) m
 
+instance Monad m => ThrowSub (TypeT n a m) where
+    throwSub = throwError . TypeWrapSubError
+
 assertTy :: (Monad m, Ord a) => Ty -> Exp n a -> TypeT n a m ()
 assertTy t e = do
     u <- typeCheck e
     unless (u == t) (throwError (CheckError u t))
 
-tySF :: (Monad m, Ord a) => ExpFold n a (TypeT n a m Ty)
-tySF = ScopeFold bound free binder functor where
-    bound = throwError . TyUnboundError
+typeCheck :: (Monad m, Ord a) => Exp n a -> TypeT n a m Ty
+typeCheck = foldScope sf where
+    sf = closedFold free binder functor
 
     free a = do
         tyMap <- view (field @"teTyMap")
@@ -68,7 +71,7 @@ tySF = ScopeFold bound free binder functor where
         let ExpN (Name n ()) ty = binderInfo b
         gen <- view (field @"teGen")
         a <- lift (gen n)
-        instantiateAndThen (field @"teTyMap") a ty b (throwError TySubError) ((Arr ty <$>) . typeCheck)
+        instantiateAndThen (field @"teTyMap") a ty b ((Arr ty <$>) . typeCheck)
 
     functor = \case
         App f x -> do
@@ -84,9 +87,6 @@ tySF = ScopeFold bound free binder functor where
         Suc e -> assertTy Nat e $> Nat
         Zero -> pure Nat
 
-typeCheck :: (Monad m, Ord a) => Exp n a -> TypeT n a m Ty
-typeCheck = foldScope tySF
-
 -- Evaluation
 
 data EvalError n a =
@@ -94,9 +94,8 @@ data EvalError n a =
   | NonNatGuardError (Exp n a)
   | NonLamElseError (Exp n a)
   | NonLamAppError (Exp n a)
-  | EvalUnboundError Int
-  | EvalSubError
-  deriving (Eq, Show)
+  | EvalWrapSubError SubError
+  deriving (Generic, Eq, Show)
 
 data EvalEnv n m a = EvalEnv
   { eeGen    :: VarGen n m a
@@ -105,9 +104,12 @@ data EvalEnv n m a = EvalEnv
 
 type EvalT n a m = FuncT (EvalEnv n m a) () (EvalError n a) m
 
-bsSF :: (Monad m, Ord a) => ExpFold n a (EvalT n a m (Exp n a))
-bsSF = ScopeFold bound free binder functor where
-    bound = throwError . EvalUnboundError
+instance Monad m => ThrowSub (EvalT n a m) where
+    throwSub = throwError . EvalWrapSubError
+
+bigStep :: (Monad m, Ord a) => Exp n a -> EvalT n a m (Exp n a)
+bigStep = foldScope sf where
+    sf = closedFold free binder functor
 
     free a = do
         expMap <- view (field @"eeExpMap")
@@ -124,7 +126,7 @@ bsSF = ScopeFold bound free binder functor where
                     gen <- view (field @"eeGen")
                     a <- lift (gen n)
                     xv <- bigStep x
-                    instantiateAndThen (field @"eeExpMap") a xv b (throwError EvalSubError) bigStep
+                    instantiateAndThen (field @"eeExpMap") a xv b bigStep
                 Nothing -> throwError (NonLamAppError fv)
         Ifz g t e -> do
             iv <- bigStep g
@@ -137,11 +139,8 @@ bsSF = ScopeFold bound free binder functor where
                             let n = nameKey (expName (binderInfo b))
                             gen <- view (field @"eeGen")
                             a <- lift (gen n)
-                            instantiateAndThen (field @"eeExpMap") a ev b (throwError EvalSubError) bigStep
+                            instantiateAndThen (field @"eeExpMap") a ev b bigStep
                         Nothing -> throwError (NonLamElseError e')
                 _ -> throwError (NonNatGuardError g)
         Suc e -> wrapScope . Suc <$> bigStep e
         Zero -> pure (liftScope Zero)
-
-bigStep :: (Monad m, Ord a) => Exp n a -> EvalT n a m (Exp n a)
-bigStep = foldScope bsSF

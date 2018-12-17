@@ -5,7 +5,7 @@ import Data.Bifunctor     (Bifunctor (..))
 import Data.Bitraversable (Bitraversable (..))
 import GHC.Generics       (Generic)
 
-data UnderBinder n e = UnderBinder Int n e
+data UnderBinder n e = UnderBinder { ubArity :: Int, ubInfo :: n, ubBody :: e }
     deriving (Generic, Eq, Show, Functor, Foldable, Traversable)
 
 data UnderScope n f e a =
