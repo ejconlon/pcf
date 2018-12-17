@@ -78,5 +78,5 @@ additionalOptions = M.fromList
     [ ("eval", ("evaluate an expression", evalCommand))
     ]
 
-main :: IO ()
-main = runRepl (ReplDef "Welcome to the PCF V1 Repl." emptyOpsData additionalOptions execCommand)
+exe :: IO ()
+exe = runRepl (ReplDef "Welcome to the PCF V1 Repl." emptyOpsData additionalOptions execCommand)

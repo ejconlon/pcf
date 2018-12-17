@@ -44,6 +44,8 @@ import           Data.Bifunctor        (bimap)
 import           Data.Bitraversable    (bitraverse)
 import           Data.Foldable         (toList)
 import           Data.Maybe            (fromMaybe)
+import           Data.Set              (Set)
+import qualified Data.Set              as S
 import           Data.Vector           (Vector)
 import qualified Data.Vector           as V
 import           GHC.Generics          (Generic)
@@ -137,8 +139,8 @@ liftScope = wrapScope . (pure <$>)
 boundScope :: Binder n f a -> Scope n f a
 boundScope = Scope . ScopeA . unBinder
 
-scopeFreeVars :: Foldable f => Scope n f a -> Vector a
-scopeFreeVars = V.fromList . toList
+scopeFreeVars :: (Foldable f, Ord a) => Scope n f a -> Set a
+scopeFreeVars = S.fromList . toList
 
 scopeMapInfo :: Functor f => (n -> o) -> Scope n f a -> Scope o f a
 scopeMapInfo f s =
@@ -196,7 +198,7 @@ binderInfo = ubInfo . unBinder
 binderBody :: Binder n f a -> Scope n f a
 binderBody = ubBody . unBinder
 
-binderFreeVars :: Foldable f => Binder n f a -> Vector a
+binderFreeVars :: (Foldable f, Ord a) => Binder n f a -> Set a
 binderFreeVars = scopeFreeVars . binderBody
 
 binderMapInfo :: Functor f => (n -> o) -> Binder n f a -> Binder o f a

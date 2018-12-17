@@ -1,7 +1,7 @@
 module Test.Pcf.Core.SubTest where
 
 import Control.Monad.Identity (Identity (..))
-import Data.Vector            as V
+import Data.Set               as S
 import Pcf.Core.Sub
 import Pcf.Core.Sub.Internal
 import Test.Pcf.Assertions    ((@/=))
@@ -49,12 +49,12 @@ test_sub =
             sid @/= svar
 
         testFreeVars = testCase "free vars" $ do
-            scopeFreeVars sid @?= V.empty
-            scopeFreeVars sconst @?= V.empty
-            scopeFreeVars sfree @?= V.singleton 'x'
-            scopeFreeVars sfree2 @?= V.singleton 'x'
-            scopeFreeVars svar @?= V.singleton 'x'
-            scopeFreeVars svar2 @=? V.singleton 'e'
+            scopeFreeVars sid @?= S.empty
+            scopeFreeVars sconst @?= S.empty
+            scopeFreeVars sfree @?= S.singleton 'x'
+            scopeFreeVars sfree2 @?= S.singleton 'x'
+            scopeFreeVars svar @?= S.singleton 'x'
+            scopeFreeVars svar2 @=? S.singleton 'e'
 
         testAbstract = testCase "abstract" $ do
             svar @?= (Scope (ScopeF 'x') :: BareScope)
