@@ -10,6 +10,7 @@ import qualified Data.Vector                as V
 import           Data.Void                  (Void)
 import           GHC.Generics               (Generic)
 import           Pcf.Core.Sub
+import           Pcf.V2.Info
 import           Pcf.V2.Types               (Exp (..), ExpF (..), ExpN (..), SExp (..),
                                              Stmt (..), Ty (..))
 import qualified Text.Megaparsec            as MP
@@ -17,8 +18,6 @@ import qualified Text.Megaparsec.Char       as MPC
 import qualified Text.Megaparsec.Char.Lexer as MPCL
 
 type Parser = MP.Parsec Void Text
-
-data Anno = Anno { annoStart :: !MP.SourcePos, annoEnd :: !MP.SourcePos } deriving (Generic, Eq, Show)
 
 type AnnoFunc i = MP.SourcePos -> MP.SourcePos -> i
 
