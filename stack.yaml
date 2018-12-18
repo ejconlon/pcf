@@ -5,5 +5,5 @@ resolver: lts-12.22
 packages:
 - .
 
-# extra-deps:
-# - monad-gen-0.3.0.1
+extra-deps:
+- megaparsec-7.0.4

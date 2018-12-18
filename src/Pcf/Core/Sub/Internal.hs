@@ -5,14 +5,14 @@ import Data.Bifunctor     (Bifunctor (..))
 import Data.Bitraversable (Bitraversable (..))
 import GHC.Generics       (Generic)
 
-data UnderBinder n e = UnderBinder { ubArity :: Int, ubInfo :: n, ubBody :: e }
+data UnderBinder n e = UnderBinder { ubArity :: !Int, ubInfo :: !n, ubBody :: !e }
     deriving (Generic, Eq, Show, Functor, Foldable, Traversable)
 
 data UnderScope n f e a =
-      ScopeB Int
-    | ScopeF a
-    | ScopeA (UnderBinder n e)
-    | ScopeE (f e)
+      ScopeB !Int
+    | ScopeF !a
+    | ScopeA !(UnderBinder n e)
+    | ScopeE !(f e)
     deriving (Generic, Eq, Show)
 
 instance Functor f => Bifunctor (UnderScope n f) where

@@ -18,7 +18,7 @@ import           GHC.Generics               (Generic)
 import           Pcf.Core.Func
 import           Pcf.Core.Sub               (SubError, scopeFreeVars)
 import           Pcf.V2.Functions
-import           Pcf.V2.Parser              (readExp, readSExp, readStmt)
+import           Pcf.V2.Parser              (Anno, readExp, readSExpAnno, readStmt)
 import           Pcf.V2.Types
 
 data OpsData = OpsData
@@ -34,8 +34,8 @@ data OpsExc =
       AlreadyDeclared Text
     | NotDeclared Text
     | AlreadyDefined Text
-    | CannotParseExp (SExp Text)
-    | CannotParseStmt (SExp Text)
+    | CannotParseExp (SExp Anno Text)
+    | CannotParseStmt (SExp Anno Text)
     | CannotParseSExp Text
     | WrapTypeError (TypeError Text)
     | WrapEvalError (EvalError Text Text)
@@ -71,13 +71,13 @@ liftConvT = (fst <$>) . liftFuncT (ConvEnv pure) () WrapConvError
 -- liftFauxT :: Monad m => Monad m => FauxState Text -> FauxT Text m b -> OpsT m (b, FauxState Text)
 -- liftFauxT st = liftFuncT () st WrapFauxError
 
-parseSExp :: Monad m => Text -> OpsT m (SExp Text)
-parseSExp input = maybe (throwError (CannotParseSExp input)) pure (readSExp input)
+parseSExp :: Monad m => Text -> OpsT m (SExp Anno Text)
+parseSExp input = maybe (throwError (CannotParseSExp input)) pure (readSExpAnno input)
 
-parseExp :: Monad m => SExp Text -> OpsT m (Exp Text Text)
+parseExp :: Monad m => SExp Anno Text -> OpsT m (Exp Text Text)
 parseExp se = maybe (throwError (CannotParseExp se)) pure (readExp se)
 
-parseStmt :: Monad m => SExp Text -> OpsT m (Stmt Text Text)
+parseStmt :: Monad m => SExp Anno Text -> OpsT m (Stmt Text Text)
 parseStmt se = maybe (throwError (CannotParseStmt se)) pure (readStmt se)
 
 declare :: Monad m => Text -> Ty -> OpsT m ()
