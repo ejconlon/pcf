@@ -1,16 +1,16 @@
 module Pcf.V2.Printer (emit, repTy, printTy, repExp, printExp, repStmt, printStmt) where
 
 import           Data.Foldable (toList)
-import           Data.Text    (Text)
-import qualified Data.Text    as T
-import           Data.Vector  (Vector)
-import qualified Data.Vector  as V
+import           Data.Text     (Text)
+import qualified Data.Text     as T
+import           Data.Vector   (Vector)
+import qualified Data.Vector   as V
 import           Pcf.Core.Sub
-import           Pcf.V2.Types (Exp (..), ExpF (..), ExpN (..), SExp (..), Stmt (..), Ty (..))
+import           Pcf.V2.Types  (Exp (..), ExpF (..), ExpN (..), SExp (..), Stmt (..), Ty (..))
 
 emit :: SExp i Text -> Text
 emit (SAtom _ t)  = t
-emit (SList _ ts) = "(" <> T.intercalate " " (emit <$> (toList ts)) <> ")"
+emit (SList _ ts) = "(" <> T.intercalate " " (emit <$> toList ts) <> ")"
 
 unassoc :: (ThrowSub m, Monad m) => Vector (SExp () Text) -> Exp Text Text -> m (SExp () Text)
 unassoc ts e =
