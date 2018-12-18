@@ -76,6 +76,8 @@ runSub = runExcept . unSub
 newtype Scope n f a = Scope { unScope :: UnderScope n f (Scope n f a) a }
     deriving (Generic)
 
+type BottomUp n f g a = f (Scope n g a) -> g (Scope n g a)
+
 instance (Eq (f (Scope n f a)), Eq n, Eq a) => Eq (Scope n f a) where
     Scope u == Scope v = u == v
 
@@ -155,7 +157,7 @@ scopeTraverseInfo f s =
     case unScope s of
         ScopeB b  -> pure (Scope (ScopeB b))
         ScopeF a  -> pure (Scope (ScopeF a))
-        ScopeA b  -> Scope . ScopeA . unBinder <$> binderTraverseInfo f (Binder b)
+        ScopeA e  -> Scope . ScopeA . unBinder <$> binderTraverseInfo f (Binder e)
         ScopeE fe -> Scope . ScopeE <$> traverse (scopeTraverseInfo f) fe
 
 matchFunctor :: Scope n f a -> Maybe (f (Scope n f a))
@@ -167,6 +169,14 @@ forceFunctor s =
     case matchFunctor s of
         Just x  -> pure x
         Nothing -> throwSub FunctorMatchError
+
+transformScope :: Functor f => BottomUp n f g a -> Scope n f a -> Scope n g a
+transformScope t s =
+    case unScope s of
+        ScopeB b -> Scope (ScopeB b)
+        ScopeF a -> Scope (ScopeF a)
+        ScopeA e -> Scope (ScopeA (unBinder (transformBinder t (Binder e))))
+        ScopeE fe -> Scope (ScopeE (t (transformScope t <$> fe)))
 
 -- Binder
 
@@ -206,6 +216,9 @@ binderMapInfo f (Binder (UnderBinder i x b)) = Binder (UnderBinder i (f x) (scop
 
 binderTraverseInfo :: (Traversable f, Applicative m) => (n -> m o) -> Binder n f a -> m (Binder o f a)
 binderTraverseInfo f (Binder (UnderBinder i x b)) = (\y c -> Binder (UnderBinder i y c)) <$> f x <*> scopeTraverseInfo f b
+
+transformBinder :: Functor f => BottomUp n f g a -> Binder n f a -> Binder n g a
+transformBinder t (Binder (UnderBinder i x b)) = Binder (UnderBinder i x (transformScope t b))
 
 -- Abstraction and instantiation
 
@@ -253,6 +266,9 @@ data ScopeFold n f a r = ScopeFold
     , sfBinder  :: Binder n f a -> r
     , sfFunctor :: f (Scope n f a) -> r
     } deriving (Generic, Functor)
+
+transformFold :: Functor f => BottomUp n f g a -> ScopeFold n g a r -> ScopeFold n f a r
+transformFold t (ScopeFold bound free binder functor) = ScopeFold bound free (binder . transformBinder t) (functor . t . (transformScope t <$>))
 
 boundFold :: ThrowSub m => (a -> m r) -> (Binder n f a -> m r) -> (f (Scope n f a) -> m r) -> ScopeFold n f a (m r)
 boundFold = ScopeFold (throwSub . UnboundError)

@@ -8,6 +8,8 @@ import GHC.Generics       (Generic)
 data UnderBinder n e = UnderBinder { ubArity :: !Int, ubInfo :: !n, ubBody :: !e }
     deriving (Generic, Eq, Show, Functor, Foldable, Traversable)
 
+-- TODO revisit strictness annotations
+-- lazy in functor ctor so transforms aren't expensive with strict functors?
 data UnderScope n f e a =
       ScopeB !Int
     | ScopeF !a
