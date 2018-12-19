@@ -54,8 +54,8 @@ import           Pcf.Core.Sub.Internal
 -- Sub
 
 data SubError =
-      ApplyError !Int !Int
-    | UnboundError !Int
+      ApplyError Int Int
+    | UnboundError Int
     | FunctorMatchError
     | BinderMatchError
     deriving (Generic, Eq, Show)
@@ -283,7 +283,7 @@ foldScope (ScopeFold bound free binder functor) s =
 
 -- Name
 
-data Name n a = Name { nameKey :: !n, nameValue :: !a } deriving (Show, Functor, Foldable, Traversable)
+data Name n a = Name { nameKey :: n, nameValue :: a } deriving (Generic, Show, Functor, Foldable, Traversable)
 
 instance Eq a => Eq (Name n a) where
     Name _ x == Name _ y = x == y

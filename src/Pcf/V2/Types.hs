@@ -27,7 +27,7 @@ data ExpF a =
     | Suc a
     deriving (Generic, Eq, Show, Functor, Foldable, Traversable)
 
-data ExpN n = ExpN { expName :: !(NameOnly n), expTy :: !Ty } deriving (Generic, Eq, Show)
+data ExpN n = ExpN { expName :: NameOnly n, expTy :: Ty } deriving (Generic, Eq, Show)
 
 type Exp n a = Scope (ExpN n) ExpF a
 
