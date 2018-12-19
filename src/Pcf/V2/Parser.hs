@@ -72,6 +72,8 @@ readTy (SList _ ts) = case toList ts of
 keywords :: Set Text
 keywords = Set.fromList ["ifz", "lam", "fix", "suc", "zero", "Nat", "->"]
 
+-- What info do we want to extract? Do we annotate with the sum of annotations?
+-- Do we get that by default with slist ann, for example?
 readExp :: Alternative m => SExp i Text -> m (Exp Text Text)
 readExp (SAtom _ t) = pure (if t == "zero" then wrapScope Zero else pure t)
 readExp (SList _ ts) = go ts where
