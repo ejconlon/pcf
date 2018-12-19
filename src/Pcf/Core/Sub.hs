@@ -63,7 +63,7 @@ data SubError =
 class ThrowSub m where
     throwSub :: SubError -> m a
 
-newtype Sub a = Sub { unSub :: Except SubError a } deriving (Functor, Applicative, Monad)
+newtype Sub a = Sub { unSub :: Except SubError a } deriving (Generic, Functor, Applicative, Monad)
 
 instance ThrowSub Sub where
     throwSub = Sub . throwError
@@ -173,9 +173,9 @@ forceFunctor s =
 transformScope :: Functor f => BottomUp n f g a -> Scope n f a -> Scope n g a
 transformScope t s =
     case unScope s of
-        ScopeB b -> Scope (ScopeB b)
-        ScopeF a -> Scope (ScopeF a)
-        ScopeA e -> Scope (ScopeA (unBinder (transformBinder t (Binder e))))
+        ScopeB b  -> Scope (ScopeB b)
+        ScopeF a  -> Scope (ScopeF a)
+        ScopeA e  -> Scope (ScopeA (unBinder (transformBinder t (Binder e))))
         ScopeE fe -> Scope (ScopeE (t (transformScope t <$> fe)))
 
 -- Binder
