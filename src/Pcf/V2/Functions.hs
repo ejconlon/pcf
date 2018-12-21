@@ -36,14 +36,15 @@ insertOnceWithout v vs a = if a == v then vs else insertOnce vs a
 
 -- Scope manipulation
 
-instantiateAndThen :: (ThrowSub m, MonadReader x m, Functor f, Ord a) => (Lens' x (Map a w)) -> a -> w -> Binder n f a -> (Scope n f a -> m r) -> m r
-instantiateAndThen lens a w b f = do
-    s <- apply1 (pure a) b
+instantiateAndThen :: (ThrowSub m, MonadReader x m, Functor f, Ord a) => (Lens' x (Map a w)) -> y -> a -> w -> Binder y n f a -> (Scope y n f a -> m r) -> m r
+instantiateAndThen lens y a w b f = do
+    s <- apply1 (freeVarScope' y a) b
     localMod lens (M.insert a w) (f s)
 
-scopeRebind :: (ThrowSub m, Monad m, Functor f, Functor g, Foldable g, Eq a) => a -> Binder n f a -> (Scope n f a -> m (Scope n g a)) -> m (Vector a, Binder n g a)
-scopeRebind a b f = do
-    s <- apply1 (pure a) b
+-- TODO pass explicit info to abstract?
+scopeRebind :: (Monoid y, ThrowSub m, Monad m, Functor f, Functor g, Foldable g, Eq a) => y -> a -> Binder y n f a -> (Scope y n f a -> m (Scope y n g a)) -> m (Vector a, Binder y n g a)
+scopeRebind y a b f = do
+    s <- apply1 (freeVarScope' y a) b
     t <- f s
     let fvs = foldl' (insertOnceWithout a) V.empty (toList t)
         fvs' = V.snoc fvs a
@@ -83,17 +84,17 @@ typeCheck :: (Monad m, Ord a) => Exp n a -> TypeT n a m Ty
 typeCheck = foldScope sf where
     sf = boundFold free binder functor
 
-    free a = do
+    free _ a = do
         tyMap <- view (field @"teTyMap")
         maybe (throwError (TypeMissingVarError a)) pure (M.lookup a tyMap)
 
-    binder b = do
+    binder _ b = do
         let ExpN (Name n ()) ty = binderInfo b
         gen <- view (field @"teGen")
         a <- lift (gen n)
-        instantiateAndThen (field @"teTyMap") a ty b ((Arr ty <$>) . typeCheck)
+        instantiateAndThen (field @"teTyMap") () a ty b ((Arr ty <$>) . typeCheck)
 
-    functor = \case
+    functor _ = \case
         App f x -> do
             fTy <- typeCheck f
             case fTy of
@@ -131,13 +132,13 @@ bigStep :: (Monad m, Ord a) => Exp n a -> EvalT n a m (Exp n a)
 bigStep = foldScope sf where
     sf = boundFold free binder functor
 
-    free a = do
+    free _ a = do
         expMap <- view (field @"eeExpMap")
         maybe (throwError (EvalMissingVarError a)) pure (M.lookup a expMap)
 
-    binder = pure . boundScope
+    binder _ = pure . binderScope
 
-    functor = \case
+    functor _ = \case
         App f x -> do
             fv <- bigStep f
             case matchBinder fv of
@@ -146,7 +147,7 @@ bigStep = foldScope sf where
                     gen <- view (field @"eeGen")
                     a <- lift (gen n)
                     xv <- bigStep x
-                    instantiateAndThen (field @"eeExpMap") a xv b bigStep
+                    instantiateAndThen (field @"eeExpMap") () a xv b bigStep
                 Nothing -> throwError (NonLamAppError fv)
         Ifz g t e -> do
             iv <- bigStep g
@@ -159,7 +160,7 @@ bigStep = foldScope sf where
                             let n = nameKey (expName (binderInfo b))
                             gen <- view (field @"eeGen")
                             a <- lift (gen n)
-                            instantiateAndThen (field @"eeExpMap") a ev b bigStep
+                            instantiateAndThen (field @"eeExpMap") () a ev b bigStep
                         Nothing -> throwError (NonLamElseError e')
                 _ -> throwError (NonNatGuardError g)
         Suc e -> wrapScope . Suc <$> bigStep e
@@ -178,17 +179,17 @@ instance Monad m => ThrowSub (ConvT n a m) where
 
 closConv :: (Monad m, Eq a) => Exp n a -> ConvT n a m (ExpC n a)
 closConv = foldScope sf where
-    sf = boundFold (pure . pure) binder functor
+    sf = boundFold (const (pure . pure)) binder functor
 
-    binder b = do
+    binder _ b = do
         let i = binderInfo b
             n = nameKey (expName i)
         gen <- view (field @"ceGen")
         a <- lift (gen n)
-        (vs, b') <- scopeRebind a b closConv
-        pure (wrapScope (ClosC (pure <$> vs) (boundScope b')))
+        (vs, b') <- scopeRebind () a b closConv
+        pure (wrapScope (ClosC (pure <$> vs) (binderScope b')))
 
-    functor f = (wrapScope <$>) $ case f of
+    functor _ f = (wrapScope <$>) $ case f of
         App f x   -> AppC <$> closConv f <*> closConv x
         Ifz g t e -> IfzC <$> closConv g <*> closConv t <*> closConv e
         Suc e     -> SucC <$> closConv e

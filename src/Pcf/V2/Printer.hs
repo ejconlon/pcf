@@ -29,9 +29,9 @@ repExp :: (ThrowSub m, Monad m) => Exp Text Text -> m (SExp () Text)
 repExp = foldScope sf where
     sf = boundFold free binder functor
 
-    free = pure . SAtom ()
+    free _ = pure . SAtom ()
 
-    binder b = do
+    binder _ b = do
         let i = binderInfo b
             n = nameKey (expName i)
             ty = expTy i
@@ -39,7 +39,7 @@ repExp = foldScope sf where
         s' <- repExp s
         pure (SList () (V.fromList [SAtom () "lam", SAtom () n, repTy ty, s']))
 
-    functor = \case
+    functor _ = \case
         App l r -> do
             r' <- repExp r
             unassoc (V.singleton r') l

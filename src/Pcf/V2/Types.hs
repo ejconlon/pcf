@@ -28,7 +28,7 @@ data ExpF a =
 
 data ExpN n = ExpN { expName :: NameOnly n, expTy :: Ty } deriving (Generic, Eq, Show)
 
-type Exp n a = Scope (ExpN n) ExpF a
+type Exp n a = Scope () (ExpN n) ExpF a
 
 -- Stmt
 
@@ -47,4 +47,4 @@ data ExpCF a =
     | ClosC (Vector a) a
     deriving (Generic, Eq, Show, Functor, Foldable, Traversable)
 
-type ExpC n a = Scope (ExpN n) ExpCF a
+type ExpC n a = Scope () (ExpN n) ExpCF a

@@ -83,7 +83,7 @@ readExp (SList _ ts) = go ts where
         [SAtom _ "lam", SAtom _ n, ty, e] ->
             if Set.member n keywords
                 then empty
-                else (\ty' e' -> boundScope (abstract1 (ExpN (Name n ()) ty') n e')) <$> readTy ty <*> readExp e
+                else (\ty' e' -> binderScope (abstract1 (ExpN (Name n ()) ty') n e')) <$> readTy ty <*> readExp e
         l:r:rs -> assoc rs ((\l' r' -> wrapScope (App l' r')) <$> readExp l <*> readExp r)
         _ -> empty
     assoc rs me = foldl' (\me' r -> (\l' r' -> wrapScope (App l' r')) <$> me' <*> readExp r) me rs
