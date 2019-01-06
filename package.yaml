@@ -46,6 +46,7 @@ default-extensions:
   - FlexibleContexts
   - GeneralizedNewtypeDeriving
   - LambdaCase
+  - MultiWayIf
   - OverloadedStrings
   - TypeApplications
 

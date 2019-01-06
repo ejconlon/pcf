@@ -3,7 +3,7 @@ module Pcf.V1.Printer (emit, repTy, printTy, repExp, printExp, repStmt, printStm
 import           Bound.Name       (Name (..))
 import           Data.Text        (Text)
 import qualified Data.Text        as Text
-import           Pcf.V1.Functions (instantiateAndThen')
+import           Pcf.Core.BoundUtil (instantiateAndThen')
 import           Pcf.V1.Types     (Exp (..), SExp (..), Stmt (..), Ty (..))
 
 emit :: SExp Text -> Text
