@@ -16,9 +16,11 @@ import           Data.Text                  (Text)
 import           Data.Void                  (absurd)
 import           GHC.Generics               (Generic)
 import           Pcf.Core.Func
+import           Pcf.Core.SExp              (SExp)
+import           Pcf.Core.SExp.Parser       (Anno, readSExpAnno)
 import           Pcf.Core.Sub               (SubError, scopeFreeVars)
 import           Pcf.V2.Functions
-import           Pcf.V2.Parser              (Anno, readExp, readSExpAnno, readStmt)
+import           Pcf.V2.Parser              (readExp, readStmt)
 import           Pcf.V2.Types
 
 data OpsData = OpsData

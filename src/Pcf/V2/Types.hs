@@ -4,13 +4,6 @@ import Data.Vector  (Vector)
 import GHC.Generics (Generic)
 import Pcf.Core.Sub
 
--- SExp
-
-data SExp i a =
-      SAtom i a
-    | SList i (Vector (SExp i a))
-    deriving (Generic, Eq, Show, Functor, Foldable, Traversable)
-
 -- Ty
 
 data Ty =
