@@ -1,14 +1,14 @@
 module Pcf.V2.Printer (repTy, printTy, repExp, printExp, repStmt, printStmt) where
 
-import           Data.Foldable (toList)
-import           Data.Text     (Text)
-import qualified Data.Text     as T
-import           Data.Vector   (Vector)
-import qualified Data.Vector   as V
-import           Pcf.Core.Sub
-import           Pcf.Core.SExp (SExp (..))
+import           Data.Foldable         (toList)
+import           Data.Text             (Text)
+import qualified Data.Text             as T
+import           Data.Vector           (Vector)
+import qualified Data.Vector           as V
+import           Pcf.Core.SExp         (SExp (..))
 import           Pcf.Core.SExp.Printer (emit)
-import           Pcf.V2.Types  (Exp (..), ExpF (..), ExpN (..), Stmt (..), Ty (..))
+import           Pcf.Core.Sub
+import           Pcf.V2.Types          (Exp (..), ExpF (..), ExpN (..), Stmt (..), Ty (..))
 
 unassoc :: (ThrowSub m, Monad m) => Vector (SExp () Text) -> Exp Text Text -> m (SExp () Text)
 unassoc ts e =

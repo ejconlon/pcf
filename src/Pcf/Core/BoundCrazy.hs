@@ -1,7 +1,7 @@
 module Pcf.Core.BoundCrazy where
 
-import Bound (Scope (..), Var (..))
-import Control.Monad (ap)
+import Bound                  (Scope (..), Var (..))
+import Control.Monad          (ap)
 import Control.Monad.Identity (Identity (..))
 
 class Monad f => Munge f where
@@ -13,7 +13,7 @@ mungeBind m f = runIdentity (munge m (Identity . f))
 mungeScope :: (Applicative m, Munge f) => Scope b f a -> (a -> m (f c)) -> m (Scope b f c)
 mungeScope (Scope e) f = Scope <$> munge e g where
     g v = case v of
-        B b -> pure (pure (B b))
+        B b  -> pure (pure (B b))
         F ea -> munge ea (fmap (pure . F) . f)
 
 -- Example
@@ -48,7 +48,7 @@ mungeScope (Scope e) f = Scope <$> munge e g where
 instantiateM :: (Applicative m, Munge f) => (b -> m (f a)) -> Scope b f a -> m (f a)
 instantiateM k (Scope e) = munge e g where
     g v = case v of
-        B b -> k b
+        B b  -> k b
         F ea -> pure ea
 
 instantiate1M :: (Applicative m, Munge f) => m (f a) -> Scope () f a -> m (f a)

@@ -3,15 +3,16 @@
 
 module Pcf.Core.BoundUtil where
 
-import Bound (Scope(..), Var(..), abstract, abstract1, instantiate, instantiate1)
-import Control.Monad.Reader (MonadReader, local)
-import Control.Lens (Lens', over)
-import Data.Foldable (toList)
-import Data.List (foldl')
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
-import Data.Vector (Vector)
-import qualified Data.Vector as V
+import           Bound                (Scope (..), Var (..), abstract, abstract1, instantiate,
+                                       instantiate1)
+import           Control.Lens         (Lens', over)
+import           Control.Monad.Reader (MonadReader, local)
+import           Data.Foldable        (toList)
+import           Data.List            (foldl')
+import           Data.Map.Strict      (Map)
+import qualified Data.Map.Strict      as M
+import           Data.Vector          (Vector)
+import qualified Data.Vector          as V
 
 -- Utils
 

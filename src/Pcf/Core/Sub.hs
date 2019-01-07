@@ -3,19 +3,19 @@
 
 module Pcf.Core.Sub where
 
-import           Control.Monad         (ap)
-import           Control.Monad.Except  (Except, MonadError (..), runExcept)
-import           Control.Monad.Trans   (MonadTrans (..))
-import           Data.Bifoldable       (Bifoldable (..))
-import           Data.Bifunctor        (Bifunctor (..))
-import           Data.Bitraversable    (Bitraversable (..))
-import           Data.Foldable         (toList)
-import           Data.Maybe            (fromMaybe)
-import           Data.Set              (Set)
-import qualified Data.Set              as S
-import           Data.Vector           (Vector)
-import qualified Data.Vector           as V
-import           GHC.Generics          (Generic)
+import           Control.Monad        (ap)
+import           Control.Monad.Except (Except, MonadError (..), runExcept)
+import           Control.Monad.Trans  (MonadTrans (..))
+import           Data.Bifoldable      (Bifoldable (..))
+import           Data.Bifunctor       (Bifunctor (..))
+import           Data.Bitraversable   (Bitraversable (..))
+import           Data.Foldable        (toList)
+import           Data.Maybe           (fromMaybe)
+import           Data.Set             (Set)
+import qualified Data.Set             as S
+import           Data.Vector          (Vector)
+import qualified Data.Vector          as V
+import           GHC.Generics         (Generic)
 
 -- Sub
 
@@ -189,7 +189,7 @@ scopeFreeVars = S.fromList . toList
 
 matchFunctor :: Scope y n f a -> Maybe (f (Scope y n f a))
 matchFunctor (Scope y (ScopeE fe)) = pure fe
-matchFunctor _                   = Nothing
+matchFunctor _                     = Nothing
 
 forceFunctor :: (ThrowSub m, Applicative m) => Scope y n f a -> m (f (Scope y n f a))
 forceFunctor s =
@@ -218,7 +218,7 @@ instance (Show (f (Scope y n f a)), Show y, Show n, Show a) => Show (Binder y n 
 
 matchBinder :: Scope y n f a -> Maybe (Binder y n f a)
 matchBinder (Scope _ (ScopeA ub)) = pure (Binder ub)
-matchBinder _                   = Nothing
+matchBinder _                     = Nothing
 
 forceBinder :: (ThrowSub m, Applicative m) => Scope y n f a -> m (Binder y n f a)
 forceBinder s =

@@ -1,18 +1,17 @@
 module Pcf.V2.Parser (readExp, readStmt, readTy) where
 
-import           Control.Applicative        (Alternative (..))
-import           Data.Foldable              (toList)
-import           Data.List                  (foldl')
-import           Data.Set                   (Set)
-import qualified Data.Set                   as S
-import           Data.Text                  (Text)
-import qualified Data.Vector                as V
-import           Data.Void                  (Void)
-import           GHC.Generics               (Generic)
-import           Pcf.Core.SExp              (SExp (..))
+import           Control.Applicative (Alternative (..))
+import           Data.Foldable       (toList)
+import           Data.List           (foldl')
+import           Data.Set            (Set)
+import qualified Data.Set            as S
+import           Data.Text           (Text)
+import qualified Data.Vector         as V
+import           Data.Void           (Void)
+import           GHC.Generics        (Generic)
+import           Pcf.Core.SExp       (SExp (..))
 import           Pcf.Core.Sub
-import           Pcf.V2.Types               (Exp (..), ExpF (..), ExpN (..),
-                                             Stmt (..), Ty (..))
+import           Pcf.V2.Types        (Exp (..), ExpF (..), ExpN (..), Stmt (..), Ty (..))
 
 readTy :: Alternative m => SExp i Text -> m Ty
 readTy (SAtom _ t) = if t == "Nat" then pure Nat else empty

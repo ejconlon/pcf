@@ -1,6 +1,6 @@
 module Pcf.Core.SExp where
 
-import Data.Vector (Vector)
+import Data.Vector  (Vector)
 import GHC.Generics (Generic)
 
 data SExp i a =

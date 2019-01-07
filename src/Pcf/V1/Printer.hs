@@ -1,13 +1,13 @@
 module Pcf.V1.Printer (emit, repTy, printTy, repExp, printExp, repStmt, printStmt) where
 
-import           Bound.Name       (Name (..))
-import           Data.Text        (Text)
-import           Data.Vector      (Vector)
-import qualified Data.Vector      as V
-import           Pcf.Core.BoundUtil (instantiateAndThen')
-import           Pcf.Core.SExp    (SExp (..))
+import           Bound.Name            (Name (..))
+import           Data.Text             (Text)
+import           Data.Vector           (Vector)
+import qualified Data.Vector           as V
+import           Pcf.Core.BoundUtil    (instantiateAndThen')
+import           Pcf.Core.SExp         (SExp (..))
 import           Pcf.Core.SExp.Printer (emit)
-import           Pcf.V1.Types     (Exp (..), Stmt (..), Ty (..))
+import           Pcf.V1.Types          (Exp (..), Stmt (..), Ty (..))
 
 unassoc :: Vector (SExp () Text) -> Exp Text -> SExp () Text
 unassoc ts (App l r) = unassoc (V.cons (repExp r) ts) l

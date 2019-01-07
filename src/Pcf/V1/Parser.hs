@@ -1,23 +1,23 @@
 module Pcf.V1.Parser (readExp, readStmt, readTy) where
 
-import           Bound                      (abstract1)
-import           Bound.Name                 (Name (..))
-import           Control.Applicative        (Alternative (..))
-import           Control.Monad              (guard, mzero)
-import           Data.List                  (foldl')
-import           Data.Foldable              (toList)
-import           Data.Set                   (Set)
-import qualified Data.Set                   as S
-import           Data.Text                  (Text)
-import           Data.Void                  (Void)
-import           Pcf.Core.SExp              (SExp (..))
-import           Pcf.V1.Types               (Exp (..), Stmt (..), Ty (..))
+import           Bound               (abstract1)
+import           Bound.Name          (Name (..))
+import           Control.Applicative (Alternative (..))
+import           Control.Monad       (guard, mzero)
+import           Data.Foldable       (toList)
+import           Data.List           (foldl')
+import           Data.Set            (Set)
+import qualified Data.Set            as S
+import           Data.Text           (Text)
+import           Data.Void           (Void)
+import           Pcf.Core.SExp       (SExp (..))
+import           Pcf.V1.Types        (Exp (..), Stmt (..), Ty (..))
 
 readTy :: Alternative m => SExp i Text -> m Ty
 readTy (SAtom _ t) = if t == "Nat" then pure Nat else empty
 readTy (SList _ ts) = case toList ts of
     [SAtom _ "->", l, r] -> Arr <$> readTy l <*> readTy r
-    _                  -> empty
+    _                    -> empty
 
 keywords :: Set Text
 keywords = S.fromList ["ifz", "lam", "fix", "suc", "zero", "Nat", "->"]
@@ -50,4 +50,4 @@ readStmt (SList _ ts) = go ts where
     go ts = case toList ts of
         [SAtom _ "decl", SAtom _ n, ty] -> Decl n <$> readTy ty
         [SAtom _ "defn", SAtom _ n, e]  -> Defn n <$> readExp e
-        _                           -> empty
+        _                               -> empty

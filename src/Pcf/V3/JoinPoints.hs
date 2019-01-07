@@ -1,30 +1,30 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE Rank2Types      #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Pcf.V3.JoinPoints where
 
-import Bound (Scope, abstract, instantiate1, makeBound)
-import Control.Applicative (empty)
-import Control.Lens (view)
-import Control.Monad (ap, unless)
+import           Bound                 (Scope, abstract, instantiate1, makeBound)
+import           Control.Applicative   (empty)
+import           Control.Lens          (view)
+import           Control.Monad         (ap, unless)
 -- import Control.Monad.Cont (ContT, runContT)
-import Control.Monad.Reader (MonadReader)
-import Control.Monad.Except (MonadError, throwError)
+import           Control.Monad.Except  (MonadError, throwError)
+import           Control.Monad.Reader  (MonadReader)
 -- import Control.Monad.Trans (lift)
-import Data.Constraint (Dict (..))
-import Data.Deriving (deriveEq, deriveEq1, deriveShow, deriveShow1)
-import Data.Foldable (traverse_)
-import Data.Generics.Product (field)
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
-import Data.Text (Text)
-import qualified Data.Text as T
-import Data.Vector (Vector)
-import qualified Data.Vector as V
-import GHC.Generics (Generic)
-import Pcf.Core.BoundCrazy
-import Pcf.Core.BoundUtil (localMod)
-import Pcf.Core.Func (FuncT)
+import           Data.Constraint       (Dict (..))
+import           Data.Deriving         (deriveEq, deriveEq1, deriveShow, deriveShow1)
+import           Data.Foldable         (traverse_)
+import           Data.Generics.Product (field)
+import           Data.Map.Strict       (Map)
+import qualified Data.Map.Strict       as M
+import           Data.Text             (Text)
+import qualified Data.Text             as T
+import           Data.Vector           (Vector)
+import qualified Data.Vector           as V
+import           GHC.Generics          (Generic)
+import           Pcf.Core.BoundCrazy
+import           Pcf.Core.BoundUtil    (localMod)
+import           Pcf.Core.Func         (FuncT)
 
 {-
 IR where function application is specific
@@ -161,7 +161,7 @@ inferType0 (Throw0 c e) = do
     ct <- inferType0 c
     case ct of
         TyCont0 t -> checkType0 t e >> pure t
-        _ -> throwError TypeNotCont
+        _         -> throwError TypeNotCont
 
 -- data EvalError =
 --     EvalBoom
