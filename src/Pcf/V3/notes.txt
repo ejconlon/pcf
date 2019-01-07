@@ -1,0 +1,38 @@
+
+{-
+IR where function application is specific
+(for when functions can have greater arity)
+
+call (fully saturated)
+suspend (partially or fully saturated)
+unsuspend ? (or maybe just call suspend is ok)
+jump (to continuations)
+
+(xor builtin, arity 2)
+(def goOne (lam [a] (xor a)))
+(def goTwo (lam [a b] (xor a b)))
+
+will require a pass through definitions
+-}
+
+-- $(makeBound ''Exp0)
+
+-- data SuspType0 = CallSusp0 | JumpSusp0 deriving (Eq, Show)
+
+-- data FunType0 = NonFun0 | CallFun0 | JumpFun0 | SuspFun0 SuspType0 Int deriving (Eq, Show)
+
+-- funType0 :: Map Name FunType0 -> Exp0 Name -> Maybe FunType0
+-- funType0 m (Var0 n) = M.lookup n m
+-- funType0 _ (Lam0 nts _) = Just (SuspFun0 CallSusp0 (length nts))
+-- funType0 m (Call0 e xs) = do
+--     ft <- funType0 m e
+--     let addl = length xs
+--     case ft of
+--         NonFun0 -> Nothing
+--         CallFun0 -> Nothing
+--         JumpFun0 -> Nothing
+--         SuspFun0 st rem -> if | addl < rem -> Just (SuspFun0 st (rem - addl))
+--                               | addl == rem -> Just (case st of { CallSusp0 -> CallFun0; JumpSusp0 -> JumpFun0 })
+--                               | otherwise -> Nothing
+-- funType0 m (Control0 n _ e) = let m' = M.insert n (SuspFun0 JumpSusp0 1) m in undefined
+-- funType0 _ _ = Just NonFun0

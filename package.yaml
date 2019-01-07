@@ -15,7 +15,6 @@ dependencies:
 - base >= 4.11 && < 5
 - bound
 - containers
-- constraints
 - deriving-compat
 - exceptions
 - generic-lens
@@ -29,8 +28,8 @@ dependencies:
 - vector
 # - bytestring
 # - comonad
-- data-fix
-- free
+# - data-fix
+# - free
 # - hashable
 # - lens
 # - text
