@@ -8,8 +8,8 @@ import Control.Monad.Reader (MonadReader, local)
 import Control.Lens (Lens', over)
 import Data.Foldable (toList)
 import Data.List (foldl')
-import Data.Map (Map)
-import qualified Data.Map as M
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as M
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 
