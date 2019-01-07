@@ -1,9 +1,9 @@
-resolver: lts-12.22
-# resolver: nightly-2018-11-24
+resolver: lts-13.1
+# resolver: nightly-2019-01-07
 # allow-newer: true
 
 packages:
 - .
 
-extra-deps:
-- megaparsec-7.0.4
+# extra-deps:
+# - megaparsec-7.0.4
