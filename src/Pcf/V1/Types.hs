@@ -10,10 +10,6 @@ import Data.Functor.Classes (Eq1 (..), Show1 (..))
 import Data.Text            (Text)
 import Data.Vector          (Vector)
 
--- SExp
-
-data SExp a = SAtom a | SList [SExp a] deriving (Show, Eq, Functor, Foldable, Traversable)
-
 -- Ty
 
 data Ty =

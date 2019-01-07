@@ -14,9 +14,11 @@ import           Data.Text                  (Text)
 import           Data.Void                  (absurd)
 import           GHC.Generics               (Generic)
 import           Pcf.Core.Func
+import           Pcf.Core.SExp              (SExp)
+import           Pcf.Core.SExp.Parser       (Anno, readSExpAnno)
 import           Pcf.V1.Functions
-import           Pcf.V1.Parser              (readExp, readSExp, readStmt)
-import           Pcf.V1.Types               (Exp, ExpC, ExpFC, ExpL, SExp, Stmt (..), Ty)
+import           Pcf.V1.Parser              (readExp, readStmt)
+import           Pcf.V1.Types               (Exp, ExpC, ExpFC, ExpL, Stmt (..), Ty)
 
 data OpsData = OpsData
     { decls :: Map Text Ty
@@ -32,8 +34,8 @@ data OpsExc =
       AlreadyDeclared Text
     | NotDeclared Text
     | AlreadyDefined Text
-    | CannotParseExp (SExp Text)
-    | CannotParseStmt (SExp Text)
+    | CannotParseExp (SExp Anno Text)
+    | CannotParseStmt (SExp Anno Text)
     | CannotParseSExp Text
     | WrapTypeError (TypeError Text)
     | WrapEvalError (EvalError Text)
@@ -70,13 +72,13 @@ liftLamLiftT = (fst <$>) . liftFuncT (LamLiftEnv pure) () WrapLamLiftError
 liftFauxT :: Monad m => Monad m => FauxState Text -> FauxT Text m b -> OpsT m (b, FauxState Text)
 liftFauxT st = liftFuncT () st WrapFauxError
 
-parseSExp :: Monad m => Text -> OpsT m (SExp Text)
-parseSExp input = maybe (throwError (CannotParseSExp input)) pure (readSExp input)
+parseSExp :: Monad m => Text -> OpsT m (SExp Anno Text)
+parseSExp input = maybe (throwError (CannotParseSExp input)) pure (readSExpAnno input)
 
-parseExp :: Monad m => SExp Text -> OpsT m (Exp Text)
+parseExp :: Monad m => SExp Anno Text -> OpsT m (Exp Text)
 parseExp se = maybe (throwError (CannotParseExp se)) pure (readExp se)
 
-parseStmt :: Monad m => SExp Text -> OpsT m (Stmt Text)
+parseStmt :: Monad m => SExp Anno Text -> OpsT m (Stmt Text)
 parseStmt se = maybe (throwError (CannotParseStmt se)) pure (readStmt se)
 
 clear :: Monad m => OpsT m ()

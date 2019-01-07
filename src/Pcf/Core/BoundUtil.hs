@@ -15,12 +15,12 @@ import qualified Data.Vector as V
 
 -- Utils
 
-localMod :: MonadReader x m => (Lens' x y) -> (y -> y) -> m z -> m z
+localMod :: MonadReader x m => Lens' x y -> (y -> y) -> m z -> m z
 localMod lens mod = local (over lens mod)
 
 -- Scope manipulation
 
-instantiateAndThen :: (MonadReader x m, Monad f, Ord a) => (Lens' x (Map a w)) -> a -> w -> Scope () f a -> (f a -> m r) -> m r
+instantiateAndThen :: (MonadReader x m, Monad f, Ord a) => Lens' x (Map a w) -> a -> w -> Scope () f a -> (f a -> m r) -> m r
 instantiateAndThen lens v w bind f = localMod lens (M.insert v w) (f (instantiate1 (pure v) bind))
 
 instantiateAndThen' :: (Monad f, Eq a) => a -> Scope () f a -> (f a -> r) -> r
