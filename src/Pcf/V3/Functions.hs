@@ -4,10 +4,11 @@ module Pcf.V3.Functions where
 
 import           Bound                 (abstract, instantiate1, makeBound)
 import           Control.Applicative   (empty)
-import           Control.Lens          (view)
+import           Control.Lens          (use, view)
 import           Control.Monad         (unless)
 import           Control.Monad.Except  (MonadError, throwError)
 import           Control.Monad.Reader  (MonadReader)
+import           Control.Monad.State   (MonadState)
 import           Data.Foldable         (traverse_)
 import           Data.Generics.Product (field)
 import           Data.Map.Strict       (Map)
@@ -98,24 +99,45 @@ inferType0 (Throw0 c e) = do
 
 -- Evaluation
 
--- data EvalError =
---     EvalBoom
---     deriving (Eq, Show)
+data Kont0 a =
+    KontTop0
+  | KontCallFun0 (Vector (Exp0 a))
+  | KontCallArg0 (Exp0 a) (Vector (Exp0 a)) (Vector (Exp0 a))
+  | KontIf0 (Exp0 a) (Exp0 a)
+  | KontThrowFun0 (Exp0 a)
+  deriving (Eq, Show, Functor, Foldable, Traversable)
 
--- data EvalEnv = EvalEnv
---     { eeTmMap :: Map Name (Exp0 Name)
---     } deriving (Generic, Eq, Show)
+data EvalError =
+      EvalBoom
+    | EvalMissingVarError Name
+    deriving (Eq, Show)
 
--- type EvalC m = (MonadReader EvalEnv m, MonadError EvalError m)
--- type EvalT m a = FuncT EvalEnv () EvalError m a
+data EvalEnv = EvalEnv
+    { eeTmMap :: Map Name (Exp0 Name)
+    } deriving (Generic, Eq, Show)
 
--- evalProof :: Monad m => (forall n. EvalC n => n a) -> EvalT m a
--- evalProof = id
+data EvalState = EvalState
+    { esKont :: Kont0 Name
+    } deriving (Generic, Eq, Show)
 
--- eval0 :: EvalC m => Exp0 Name -> m (Exp0 Name)
--- eval0 (Var0 n) = do
---     tmMap <- view (field @"eeTmMap")
---     maybe undefined pure (M.lookup n tmMap)
+type EvalC m = (MonadReader EvalEnv m, MonadState EvalState m, MonadError EvalError m)
+type EvalT m a = FuncT EvalEnv EvalState EvalError m a
+
+evalProof :: Monad m => (forall n. EvalC n => n a) -> EvalT m a
+evalProof = id
+
+step0 :: EvalC m => Exp0 Name -> m (Maybe (Exp0 Name))
+step0 e =
+    case e of
+        Var0 n -> do
+            tmMap <- view (field @"eeTmMap")
+            case M.lookup n tmMap of
+                Nothing -> throwError (EvalMissingVarError n)
+                Just e' -> pure (Just e')
+        _ -> do
+            k <- use (field @"esKont")
+            case k of
+                _ -> throwError (EvalBoom)
 -- eval0 e@Lam0{} = pure e
 -- eval0 (Call0 e xs) = do
 --     xs' <- traverse eval0 xs
