@@ -4,7 +4,7 @@ module Pcf.V3.Functions where
 
 import           Bound                 (abstract, instantiate1, makeBound)
 import           Control.Applicative   (empty)
-import           Control.Lens          (use, view)
+import           Control.Lens          (modifying, use, view)
 import           Control.Monad         (unless)
 import           Control.Monad.Except  (MonadError, throwError)
 import           Control.Monad.Reader  (MonadReader)
@@ -101,10 +101,10 @@ inferType0 (Throw0 c e) = do
 
 data Kont0 a =
     KontTop0
-  | KontCallFun0 (Vector (Exp0 a))
-  | KontCallArg0 (Exp0 a) (Vector (Exp0 a)) (Vector (Exp0 a))
-  | KontIf0 (Exp0 a) (Exp0 a)
-  | KontThrowFun0 (Exp0 a)
+  | KontCallFun0 (Vector (Exp0 a)) (Kont0 a)
+  | KontCallArg0 (Exp0 a) (Vector (Exp0 a)) (Vector (Exp0 a)) (Kont0 a)
+  | KontIf0 (Exp0 a) (Exp0 a) (Kont0 a)
+  | KontThrowFun0 (Exp0 a) (Kont0 a)
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 data EvalError =
@@ -134,6 +134,9 @@ step0 e =
             case M.lookup n tmMap of
                 Nothing -> throwError (EvalMissingVarError n)
                 Just e' -> pure (Just e')
+        Call0 e xs -> do
+            modifying (field @"esKont") (KontCallFun0 xs)
+            pure (Just e)
         _ -> do
             k <- use (field @"esKont")
             case k of
