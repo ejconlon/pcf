@@ -7,7 +7,7 @@ import           Control.Applicative   (empty)
 import           Control.Lens          (modifying, use, view)
 import           Control.Monad         (unless)
 import           Control.Monad.Except  (MonadError, throwError)
-import           Control.Monad.Reader  (MonadReader)
+import           Control.Monad.Reader  (MonadReader, ask)
 import           Control.Monad.State   (MonadState)
 import           Data.Foldable         (traverse_)
 import           Data.Generics.Product (field)
@@ -33,6 +33,18 @@ insertAll nts m0 = foldl (\m (n, t) -> M.insert n t m) m0 nts
 lam0 :: Vector (Name, Type0) -> Exp0 Name -> Exp0 Name
 lam0 nts = let ns = fst <$> nts in Lam0 nts . abstract (flip V.elemIndex ns)
 
+-- Stuff
+
+data EnvError r e = EnvError
+    { eeEnv :: r
+    , eeError :: e
+    } deriving (Generic, Eq, Show)
+
+throwEnvError :: (MonadReader r m, MonadError (EnvError r e) m) => e -> m z
+throwEnvError error = do
+    env <- ask
+    throwError (EnvError env error)
+
 -- Typing
 
 data TypeError =
@@ -42,14 +54,17 @@ data TypeError =
     | TypeTooManyArgs Int Int
     | TypeNotLambda
     | TypeNotCont
-    deriving (Eq, Show)
+    deriving (Generic, Eq, Show)
 
 data TypeEnv = TypeEnv
     { teTyMap :: Map Name Type0
+    , tePath :: Path0
     } deriving (Generic, Eq, Show)
 
-type TypeC m = (MonadReader TypeEnv m, MonadError TypeError m)
-type TypeT m a = FuncT TypeEnv () TypeError m a
+type FullTypeError = EnvError TypeEnv TypeError
+
+type TypeC m = (MonadReader TypeEnv m, MonadError FullTypeError m)
+type TypeT m a = FuncT TypeEnv () FullTypeError m a
 
 typeProof :: Monad m => (forall n. TypeC n => n a) -> TypeT m a
 typeProof = id
@@ -57,45 +72,60 @@ typeProof = id
 checkType0 :: TypeC m => Type0 -> Exp0 Name -> m ()
 checkType0 t e = do
     u <- inferType0 e
-    unless (u == t) (throwError (TypeCheckError u t))
+    unless (u == t) (throwEnvError (TypeCheckError u t))
+
+withDir0 :: MonadReader TypeEnv m => Dir0 -> m z -> m z
+withDir0 d = localMod (field @"tePath") (flip V.snoc d)
+
+inferTyArr0 :: TypeC m => Exp0 Name -> m (Vector Type0, Type0)
+inferTyArr0 e = do
+    et <- inferType0 e
+    case et of
+        TyArr0 ats rty -> pure (ats, rty)
+        _ -> throwEnvError TypeNotLambda
+
+inferTyCont0 :: TypeC m => Exp0 Name -> m Type0
+inferTyCont0 e = do
+    et <- inferType0 e
+    case et of
+        TyCont0 t -> pure t
+        _ -> throwEnvError TypeNotCont
 
 inferType0 :: TypeC m => Exp0 Name -> m Type0
 inferType0 (Var0 n) = do
     tyMap <- view (field @"teTyMap")
-    maybe (throwError (TypeMissingVarError n)) pure (M.lookup n tyMap)
+    maybe (throwEnvError (TypeMissingVarError n)) pure (M.lookup n tyMap)
 inferType0 (Lam0 nts b) = do
-    let k z = maybe (throwError (TypeUnboundVar z)) (pure . Var0 . fst) (nts V.!? z)
-    e <- instantiateM k b
-    et <- localMod (field @"teTyMap") (insertAll nts) (inferType0 e)
+    let k z = maybe (throwEnvError (TypeUnboundVar z)) (pure . Var0 . fst) (nts V.!? z)
+    et <- withDir0 DirLamBody0 $ do
+        e <- instantiateM k b
+        localMod (field @"teTyMap") (insertAll nts) (inferType0 e)
     let ts = snd <$> nts
     pure (TyArr0 ts et)
 inferType0 (Call0 e xs) = do
-    et <- inferType0 e
-    case et of
-        TyArr0 ats rty -> do
-            let xlen = V.length xs
-                alen = V.length ats
-            if xlen > alen
-                then throwError (TypeTooManyArgs xlen alen)
-                else do
-                    traverse_ (uncurry checkType0) (V.zip ats xs)
-                    pure (if xlen == alen then rty else (TyArr0 (V.drop xlen ats) rty))
-        _ -> throwError TypeNotLambda
+    (ats, rty) <- withDir0 DirCallFun0 (inferTyArr0 e)
+    let xlen = V.length xs
+        alen = V.length ats
+    if xlen > alen
+        then throwEnvError (TypeTooManyArgs xlen alen)
+        else do
+            -- TODO push dir
+            V.izipWithM_ (\i at x -> withDir0 (DirCallArg0 i) (checkType0 at x)) ats xs
+            pure (if xlen == alen then rty else (TyArr0 (V.drop xlen ats) rty))
 inferType0 Bool0{} = pure TyBool0
 inferType0 (If0 g t e) = do
-    checkType0 TyBool0 g
-    tt <- inferType0 t
-    checkType0 tt e
+    withDir0 DirIfGuard0 (checkType0 TyBool0 g)
+    tt <- withDir0 DirIfThen0 (inferType0 t)
+    withDir0 DirIfElse0 (checkType0 tt e)
     pure tt
 inferType0 (Control0 n t b) = do
     let e = instantiate1 (Var0 n) b
-    localMod (field @"teTyMap") (M.insert n (TyCont0 t)) (checkType0 t e)
+    localMod (field @"teTyMap") (M.insert n (TyCont0 t)) (withDir0 DirControlBody0 (checkType0 t e))
     pure t
 inferType0 (Throw0 c e) = do
-    ct <- inferType0 c
-    case ct of
-        TyCont0 t -> checkType0 t e >> pure t
-        _         -> throwError TypeNotCont
+    t <- withDir0 DirThrowFun0 (inferTyCont0 c)
+    withDir0 DirThrowArg0 (checkType0 t e)
+    pure t
 
 -- Evaluation
 
@@ -105,12 +135,14 @@ data Kont0 a =
   | KontCallArg0 (Exp0 a) (Vector (Exp0 a)) (Vector (Exp0 a)) (Kont0 a)
   | KontIf0 (Exp0 a) (Exp0 a) (Kont0 a)
   | KontThrowFun0 (Exp0 a) (Kont0 a)
+  | KontThrowArg0 (Exp0 a) (Kont0 a)
   deriving (Eq, Show, Functor, Foldable, Traversable)
 
 data EvalError =
       EvalBoom
     | EvalMissingVarError Name
-    deriving (Eq, Show)
+    | EvalNotLambda
+    deriving (Generic, Eq, Show)
 
 data EvalEnv = EvalEnv
     { eeTmMap :: Map Name (Exp0 Name)
@@ -137,9 +169,17 @@ step0 e =
         Call0 e xs -> do
             modifying (field @"esKont") (KontCallFun0 xs)
             pure (Just e)
+        If0 g t e -> do
+            modifying (field @"esKont") (KontIf0 t e)
+            pure (Just e)
         _ -> do
             k <- use (field @"esKont")
             case k of
+                KontTop0 -> pure Nothing
+                KontCallFun0 xs n ->
+                    case e of
+                        Lam0 nts b -> undefined
+                        _ -> throwError (EvalNotLambda)
                 _ -> throwError (EvalBoom)
 -- eval0 e@Lam0{} = pure e
 -- eval0 (Call0 e xs) = do

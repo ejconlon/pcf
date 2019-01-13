@@ -27,6 +27,20 @@ data Exp0 a =
     | Throw0 (Exp0 a) (Exp0 a)
     deriving (Functor, Foldable, Traversable)
 
+data Dir0 =
+      DirCallFun0
+    | DirCallArg0 Int
+    | DirLamBody0
+    | DirIfGuard0
+    | DirIfThen0
+    | DirIfElse0
+    | DirControlBody0
+    | DirThrowFun0
+    | DirThrowArg0
+    deriving (Eq, Show)
+
+type Path0 = Vector Dir0
+
 instance Applicative Exp0 where
     pure = Var0
     (<*>) = ap
