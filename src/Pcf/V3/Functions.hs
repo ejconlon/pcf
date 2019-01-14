@@ -2,9 +2,9 @@
 
 module Pcf.V3.Functions where
 
-import           Bound                 (abstract, instantiate1, makeBound)
+import           Bound                 (Scope, abstract, instantiate1, makeBound)
 import           Control.Applicative   (empty)
-import           Control.Lens          (modifying, use, view)
+import           Control.Lens          (assign, modifying, use, view)
 import           Control.Monad         (unless)
 import           Control.Monad.Except  (MonadError, throwError)
 import           Control.Monad.Reader  (MonadReader, ask)
@@ -15,8 +15,8 @@ import           Data.Map.Strict       (Map)
 import qualified Data.Map.Strict       as M
 import           Data.Text             (Text)
 import qualified Data.Text             as T
-import           Data.Vector           (Vector)
-import qualified Data.Vector           as V
+import           Data.Sequence         ((|>), (!?), Seq (..))
+import qualified Data.Sequence         as Seq
 import           GHC.Generics          (Generic)
 import           Pcf.Core.BoundCrazy   (instantiateM)
 import           Pcf.Core.BoundUtil    (localMod)
@@ -30,8 +30,8 @@ insertAll nts m0 = foldl (\m (n, t) -> M.insert n t m) m0 nts
 
 -- Smart constructors
 
-lam0 :: Vector (Name, Type0) -> Exp0 Name -> Exp0 Name
-lam0 nts = let ns = fst <$> nts in Lam0 nts . abstract (flip V.elemIndex ns)
+lam0 :: Seq (Name, Type0) -> Exp0 Name -> Exp0 Name
+lam0 nts = let ns = fst <$> nts in Lam0 nts . abstract (flip Seq.elemIndexR ns)
 
 -- Stuff
 
@@ -75,9 +75,9 @@ checkType0 t e = do
     unless (u == t) (throwEnvError (TypeCheckError u t))
 
 withDir0 :: MonadReader TypeEnv m => Dir0 -> m z -> m z
-withDir0 d = localMod (field @"tePath") (flip V.snoc d)
+withDir0 d = localMod (field @"tePath") (flip (|>) d)
 
-inferTyArr0 :: TypeC m => Exp0 Name -> m (Vector Type0, Type0)
+inferTyArr0 :: TypeC m => Exp0 Name -> m (Seq Type0, Type0)
 inferTyArr0 e = do
     et <- inferType0 e
     case et of
@@ -91,12 +91,15 @@ inferTyCont0 e = do
         TyCont0 t -> pure t
         _ -> throwEnvError TypeNotCont
 
+izipWithM_ :: (Int -> a -> b -> m ()) -> Seq a -> Seq b -> m ()
+izipWithM_ = undefined
+
 inferType0 :: TypeC m => Exp0 Name -> m Type0
 inferType0 (Var0 n) = do
     tyMap <- view (field @"teTyMap")
     maybe (throwEnvError (TypeMissingVarError n)) pure (M.lookup n tyMap)
 inferType0 (Lam0 nts b) = do
-    let k z = maybe (throwEnvError (TypeUnboundVar z)) (pure . Var0 . fst) (nts V.!? z)
+    let k z = maybe (throwEnvError (TypeUnboundVar z)) (pure . Var0 . fst) (nts !? z)
     et <- withDir0 DirLamBody0 $ do
         e <- instantiateM k b
         localMod (field @"teTyMap") (insertAll nts) (inferType0 e)
@@ -104,14 +107,13 @@ inferType0 (Lam0 nts b) = do
     pure (TyArr0 ts et)
 inferType0 (Call0 e xs) = do
     (ats, rty) <- withDir0 DirCallFun0 (inferTyArr0 e)
-    let xlen = V.length xs
-        alen = V.length ats
+    let xlen = Seq.length xs
+        alen = Seq.length ats
     if xlen > alen
         then throwEnvError (TypeTooManyArgs xlen alen)
         else do
-            -- TODO push dir
-            V.izipWithM_ (\i at x -> withDir0 (DirCallArg0 i) (checkType0 at x)) ats xs
-            pure (if xlen == alen then rty else (TyArr0 (V.drop xlen ats) rty))
+            izipWithM_ (\i at x -> withDir0 (DirCallArg0 i) (checkType0 at x)) ats xs
+            pure (if xlen == alen then rty else (TyArr0 (Seq.drop xlen ats) rty))
 inferType0 Bool0{} = pure TyBool0
 inferType0 (If0 g t e) = do
     withDir0 DirIfGuard0 (checkType0 TyBool0 g)
@@ -131,8 +133,8 @@ inferType0 (Throw0 c e) = do
 
 data Kont0 a =
     KontTop0
-  | KontCallFun0 (Vector (Exp0 a)) (Kont0 a)
-  | KontCallArg0 (Exp0 a) (Vector (Exp0 a)) (Vector (Exp0 a)) (Kont0 a)
+  | KontCallFun0 (Seq (Exp0 a)) (Kont0 a)
+  | KontCallArg0 (Exp0 a) (Seq (Exp0 a)) (Seq (Exp0 a)) (Kont0 a)
   | KontIf0 (Exp0 a) (Exp0 a) (Kont0 a)
   | KontThrowFun0 (Exp0 a) (Kont0 a)
   | KontThrowArg0 (Exp0 a) (Kont0 a)
@@ -141,6 +143,7 @@ data Kont0 a =
 data EvalError =
       EvalBoom
     | EvalMissingVarError Name
+    | EvalTooManyArgs Int Int
     | EvalNotLambda
     deriving (Generic, Eq, Show)
 
@@ -157,6 +160,9 @@ type EvalT m a = FuncT EvalEnv EvalState EvalError m a
 
 evalProof :: Monad m => (forall n. EvalC n => n a) -> EvalT m a
 evalProof = id
+
+call0 :: EvalC m => Seq Name -> Seq (Exp0 Name) -> Scope Int Exp0 Name -> m (Exp0 Name)
+call0 = undefined
 
 step0 :: EvalC m => Exp0 Name -> m (Maybe (Exp0 Name))
 step0 e =
@@ -178,7 +184,13 @@ step0 e =
                 KontTop0 -> pure Nothing
                 KontCallFun0 xs n ->
                     case e of
-                        Lam0 nts b -> undefined
+                        Lam0 nts b ->
+                            case xs of
+                                Seq.Empty ->
+                                    Just <$> (call0 (fst <$> nts) Seq.empty b)
+                                x :<| xs -> do
+                                    modifying (field @"esKont") (KontCallArg0 e Seq.empty xs)
+                                    pure (Just x)
                         _ -> throwError (EvalNotLambda)
                 _ -> throwError (EvalBoom)
 -- eval0 e@Lam0{} = pure e
