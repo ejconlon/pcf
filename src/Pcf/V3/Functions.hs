@@ -13,10 +13,10 @@ import           Data.Foldable         (traverse_)
 import           Data.Generics.Product (field)
 import           Data.Map.Strict       (Map)
 import qualified Data.Map.Strict       as M
+import           Data.Sequence         (Seq (..), (!?), (|>))
+import qualified Data.Sequence         as Seq
 import           Data.Text             (Text)
 import qualified Data.Text             as T
-import           Data.Sequence         ((|>), (!?), Seq (..))
-import qualified Data.Sequence         as Seq
 import           GHC.Generics          (Generic)
 import           Pcf.Core.BoundCrazy   (instantiateM)
 import           Pcf.Core.BoundUtil    (localMod)
@@ -36,7 +36,7 @@ lam0 nts = let ns = fst <$> nts in Lam0 nts . abstract (flip Seq.elemIndexR ns)
 -- Stuff
 
 data EnvError r e = EnvError
-    { eeEnv :: r
+    { eeEnv   :: r
     , eeError :: e
     } deriving (Generic, Eq, Show)
 
@@ -58,7 +58,7 @@ data TypeError =
 
 data TypeEnv = TypeEnv
     { teTyMap :: Map Name Type0
-    , tePath :: Path0
+    , tePath  :: Path0
     } deriving (Generic, Eq, Show)
 
 type FullTypeError = EnvError TypeEnv TypeError
@@ -82,14 +82,14 @@ inferTyArr0 e = do
     et <- inferType0 e
     case et of
         TyArr0 ats rty -> pure (ats, rty)
-        _ -> throwEnvError TypeNotLambda
+        _              -> throwEnvError TypeNotLambda
 
 inferTyCont0 :: TypeC m => Exp0 Name -> m Type0
 inferTyCont0 e = do
     et <- inferType0 e
     case et of
         TyCont0 t -> pure t
-        _ -> throwEnvError TypeNotCont
+        _         -> throwEnvError TypeNotCont
 
 izipWithM_ :: (Int -> a -> b -> m ()) -> Seq a -> Seq b -> m ()
 izipWithM_ = undefined
