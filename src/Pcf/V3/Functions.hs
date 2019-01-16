@@ -2,7 +2,7 @@
 
 module Pcf.V3.Functions where
 
-import           Bound                 (Scope, abstract, instantiate1, makeBound)
+import           Bound                 (Scope, instantiate1)
 import           Control.Applicative   (empty)
 import           Control.Lens          (assign, modifying, use, view)
 import           Control.Monad         (unless)
@@ -27,11 +27,6 @@ import           Pcf.V3.Types
 
 insertAll :: (Foldable t, Ord a) => t (a, b) -> Map a b -> Map a b
 insertAll nts m0 = foldl (\m (n, t) -> M.insert n t m) m0 nts
-
--- Smart constructors
-
-lam0 :: Seq (Name, Type0) -> Exp0 Name -> Exp0 Name
-lam0 nts = let ns = fst <$> nts in Lam0 nts . abstract (flip Seq.elemIndexR ns)
 
 -- Stuff
 
@@ -209,3 +204,10 @@ step0 e =
 --         _ -> undefined
 -- eval0 (Control0 n t b) = undefined
 -- eval0 (Throw0 c e) = undefined
+
+bigStep0 :: EvalC m => Exp0 Name -> m (Exp0 Name)
+bigStep0 e = do
+    x <- step0 e
+    case x of
+        Nothing -> pure e
+        Just y -> bigStep0 y

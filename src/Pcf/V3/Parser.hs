@@ -3,6 +3,7 @@ module Pcf.V3.Parser where
 import           Control.Applicative (Alternative (..))
 import           Data.Foldable       (toList)
 import           Data.List           (foldl')
+import qualified Data.Sequence       as Seq
 import           Data.Set            (Set)
 import qualified Data.Set            as S
 import           Data.Text           (Text)
@@ -18,27 +19,38 @@ readTy0 (SList _ ts) = case toList ts of
     [SAtom _ "Cont", r] -> TyCont0 <$> readTy0 r
     _                    -> empty
 
--- keywords :: Set Text
--- keywords = S.fromList ["ifz", "lam", "fix", "suc", "zero", "Nat", "->"]
+keywords :: Set Text
+keywords = S.fromList ["if", "lam", "throw", "control", "True", "False", "Bool", "Cont", "->"]
 
--- readExp :: Alternative m => SExp i Text -> m (Exp Text Text)
--- readExp (SAtom _ t) = pure (if t == "zero" then wrapScope Zero else pure t)
--- readExp (SList _ ts) = go ts where
---     go ts = case toList ts of
---         [SAtom _ "suc", y] -> wrapScope . Suc <$> readExp y
---         [SAtom _ "ifz", g, t, e] -> (\g' t' e' -> wrapScope (Ifz g' t' e')) <$> readExp g <*> readExp t <*> readExp e
---         [SAtom _ "lam", SAtom _ n, ty, e] ->
---             if S.member n keywords
---                 then empty
---                 else (\ty' e' -> binderScope (abstract1 (ExpN (Name n ()) ty') n e')) <$> readTy ty <*> readExp e
---         l:r:rs -> assoc rs ((\l' r' -> wrapScope (App l' r')) <$> readExp l <*> readExp r)
---         _ -> empty
---     assoc rs me = foldl' (\me' r -> (\l' r' -> wrapScope (App l' r')) <$> me' <*> readExp r) me rs
+readN :: Alternative m => Text -> m Text
+readN n = if S.member n keywords then empty else pure n
 
--- readStmt :: Alternative m => SExp i Text -> m (Stmt Text Text)
--- readStmt (SAtom _ t) = empty
--- readStmt (SList _ ts) = go ts where
---     go ts = case toList ts of
---         [SAtom _ "decl", SAtom _ n, ty] -> Decl n <$> readTy ty
---         [SAtom _ "defn", SAtom _ n, e]  -> Defn n <$> readExp e
---         _                               -> empty
+readNT :: Alternative m => SExp i Text -> m (Text, Type0)
+readNT (SList _ ts) =
+    case toList ts of
+        [SAtom _ n, t] -> (,) <$> readN n <*> readTy0 t
+        _ -> empty
+readNT _ = empty
+
+readExp0 :: Alternative m => SExp i Text -> m (Exp0 Text)
+readExp0 (SAtom _ t) =
+    case t of
+        "True" -> pure (Bool0 True)
+        "False" -> pure (Bool0 False)
+        _ -> Var0 <$> readN t
+readExp0 (SList _ ts) =
+    case toList ts of
+        [SAtom _ "if", g, t, e] -> If0 <$> readExp0 g <*> readExp0 t <*> readExp0 e
+        [SAtom _ "throw", c, e] -> Throw0 <$> readExp0 c <*> readExp0 e
+        [SAtom _ "lam", SList _ nts, e] -> lam0 <$> traverse readNT nts <*> readExp0 e
+        [SAtom _ "control", SAtom _ n, t, e] -> control0 <$> readN n <*> readTy0 t <*> readExp0 e
+        l:rs -> (\l' rs' -> Call0 l' (Seq.fromList rs')) <$> readExp0 l <*> traverse readExp0 rs
+        _ -> empty
+
+readStmt0 :: Alternative m => SExp i Text -> m (Stmt0 Text)
+readStmt0 (SAtom _ t) = empty
+readStmt0 (SList _ ts) =
+    case toList ts of
+        [SAtom _ "decl", SAtom _ n, ty] -> Decl0 n <$> readTy0 ty
+        [SAtom _ "defn", SAtom _ n, e]  -> Defn0 n <$> readExp0 e
+        _                               -> empty
