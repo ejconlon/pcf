@@ -15,9 +15,9 @@ import           Pcf.V3.Types
 readTy0 :: Alternative m => SExp i Text -> m Type0
 readTy0 (SAtom _ t) = if t == "Bool" then pure TyBool0 else empty
 readTy0 (SList _ ts) = case toList ts of
-    [SAtom _ "->", (SList _ us), r] -> TyArr0 <$> traverse readTy0 us <*> readTy0 r
-    [SAtom _ "Cont", r] -> TyCont0 <$> readTy0 r
-    _                    -> empty
+    [SAtom _ "->", SList _ us, r] -> TyArr0 <$> traverse readTy0 us <*> readTy0 r
+    [SAtom _ "Cont", r]           -> TyCont0 <$> readTy0 r
+    _                             -> empty
 
 keywords :: Set Text
 keywords = S.fromList ["if", "lam", "throw", "control", "True", "False", "Bool", "Cont", "->"]
@@ -29,15 +29,15 @@ readNT :: Alternative m => SExp i Text -> m (Text, Type0)
 readNT (SList _ ts) =
     case toList ts of
         [SAtom _ n, t] -> (,) <$> readN n <*> readTy0 t
-        _ -> empty
+        _              -> empty
 readNT _ = empty
 
 readExp0 :: Alternative m => SExp i Text -> m (Exp0 Text)
 readExp0 (SAtom _ t) =
     case t of
-        "True" -> pure (Bool0 True)
+        "True"  -> pure (Bool0 True)
         "False" -> pure (Bool0 False)
-        _ -> Var0 <$> readN t
+        _       -> Var0 <$> readN t
 readExp0 (SList _ ts) =
     case toList ts of
         [SAtom _ "if", g, t, e] -> If0 <$> readExp0 g <*> readExp0 t <*> readExp0 e

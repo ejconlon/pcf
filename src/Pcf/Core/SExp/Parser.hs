@@ -1,8 +1,8 @@
 module Pcf.Core.SExp.Parser where
 
 import           Control.Applicative        ((<|>))
-import           Data.Text                  (Text)
 import qualified Data.Sequence              as Seq
+import           Data.Text                  (Text)
 import           Data.Void                  (Void)
 import           GHC.Generics               (Generic)
 import           Pcf.Core.SExp              (SExp (..))

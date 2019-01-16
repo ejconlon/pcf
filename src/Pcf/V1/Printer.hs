@@ -10,8 +10,8 @@ import           Pcf.Core.SExp.Printer (emit)
 import           Pcf.V1.Types          (Exp (..), Stmt (..), Ty (..))
 
 unassoc :: Seq (SExp () Text) -> Exp Text -> SExp () Text
-unassoc ts (App l r) = unassoc ((repExp r) :<| ts) l
-unassoc ts x         = SList () ((repExp x) :<| ts)
+unassoc ts (App l r) = unassoc (repExp r :<| ts) l
+unassoc ts x         = SList () (repExp x :<| ts)
 
 repTy :: Ty -> SExp () Text
 repTy Nat       = SAtom () "Nat"

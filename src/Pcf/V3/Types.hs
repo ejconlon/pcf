@@ -2,13 +2,13 @@
 
 module Pcf.V3.Types where
 
-import Bound               ((>>>=), Scope, abstract, abstract1)
-import Control.Monad       (ap)
-import Data.Deriving       (deriveEq, deriveEq1, deriveShow, deriveShow1)
-import Data.Sequence       (Seq)
+import           Bound         (Scope, abstract, abstract1, (>>>=))
+import           Control.Monad (ap)
+import           Data.Deriving (deriveEq, deriveEq1, deriveShow, deriveShow1)
+import           Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
-import Data.Text           (Text)
-import GHC.Generics        (Generic)
+import           Data.Text     (Text)
+import           GHC.Generics  (Generic)
 
 type Name = Text
 
@@ -54,13 +54,13 @@ instance Monad Exp0 where
     return = pure
     m >>= f =
         case m of
-            Var0 a -> f a
-            Call0 e xs -> Call0 (e >>= f) ((>>= f) <$> xs)
-            Lam0 nts b -> Lam0 nts (b >>>= f)
-            Bool0 b -> Bool0 b
-            If0 g t e -> If0 (g >>= f) (t >>= f) (e >>= f)
+            Var0 a         -> f a
+            Call0 e xs     -> Call0 (e >>= f) ((>>= f) <$> xs)
+            Lam0 nts b     -> Lam0 nts (b >>>= f)
+            Bool0 b        -> Bool0 b
+            If0 g t e      -> If0 (g >>= f) (t >>= f) (e >>= f)
             Control0 n t b -> Control0 n t (b >>>= f)
-            Throw0 c e -> Throw0 (c >>= f) (e >>= f)
+            Throw0 c e     -> Throw0 (c >>= f) (e >>= f)
 
 $(deriveEq ''Exp0)
 $(deriveShow ''Exp0)
@@ -68,7 +68,7 @@ $(deriveEq1 ''Exp0)
 $(deriveShow1 ''Exp0)
 
 lam0 :: Seq (Name, Type0) -> Exp0 Name -> Exp0 Name
-lam0 nts = let ns = fst <$> nts in Lam0 nts . abstract (flip Seq.elemIndexR ns)
+lam0 nts = let ns = fst <$> nts in Lam0 nts . abstract (`Seq.elemIndexR` ns)
 
 control0 :: Name -> Type0 -> Exp0 Name -> Exp0 Name
 control0 n t = Control0 n t . abstract1 n

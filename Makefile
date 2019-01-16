@@ -24,4 +24,4 @@ lint:
 
 .PHONY: refactor
 refactor:
-	find . -name '*.hs' | xargs -t -L1 stack exec hlint -- --refactor --refactor-options -i
+	find . -path ./.stack-work -prune -o -name '*.hs' | xargs -t -L1 stack exec hlint -- --refactor --refactor-options -i

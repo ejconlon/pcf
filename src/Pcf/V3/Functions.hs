@@ -210,4 +210,4 @@ bigStep0 e = do
     x <- step0 e
     case x of
         Nothing -> pure e
-        Just y -> bigStep0 y
+        Just y  -> bigStep0 y

@@ -3,9 +3,9 @@ module Pcf.V2.Parser (readExp, readStmt, readTy) where
 import           Control.Applicative (Alternative (..))
 import           Data.Foldable       (toList)
 import           Data.List           (foldl')
+import qualified Data.Sequence       as Seq
 import           Data.Set            (Set)
 import qualified Data.Set            as S
-import qualified Data.Sequence       as Seq
 import           Data.Text           (Text)
 import           Data.Void           (Void)
 import           GHC.Generics        (Generic)
