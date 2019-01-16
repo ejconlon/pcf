@@ -13,6 +13,7 @@ import           Data.Foldable              (toList)
 import           Data.Generics.Product      (field)
 import           Data.Map.Strict            (Map)
 import qualified Data.Map.Strict            as M
+import           Data.Sequence              (Seq)
 import qualified Data.Sequence              as Seq
 import           Data.Set                   (Set)
 import qualified Data.Set                   as S
@@ -123,7 +124,7 @@ typeCheckOps e = do
     decls <- use (field @"decls")
     liftTypeT decls (inferType0 e)
 
-bigStepOps :: Monad m => Exp0 Text -> OpsT m (Exp0 Text)
+bigStepOps :: Monad m => Exp0 Text -> OpsT m (Seq (Exp0 Text))
 bigStepOps e = do
     defns <- use (field @"defns")
     liftEvalT defns (bigStep0 e)
