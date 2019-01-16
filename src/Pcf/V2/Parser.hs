@@ -5,8 +5,8 @@ import           Data.Foldable       (toList)
 import           Data.List           (foldl')
 import           Data.Set            (Set)
 import qualified Data.Set            as S
+import qualified Data.Sequence       as Seq
 import           Data.Text           (Text)
-import qualified Data.Vector         as V
 import           Data.Void           (Void)
 import           GHC.Generics        (Generic)
 import           Pcf.Core.SExp       (SExp (..))

@@ -2,7 +2,7 @@ module Pcf.Core.SExp.Parser where
 
 import           Control.Applicative        ((<|>))
 import           Data.Text                  (Text)
-import qualified Data.Vector                as V
+import qualified Data.Sequence              as Seq
 import           Data.Void                  (Void)
 import           GHC.Generics               (Generic)
 import           Pcf.Core.SExp              (SExp (..))
@@ -45,7 +45,7 @@ satomParser :: AnnoFunc i -> Parser (SExp i Text)
 satomParser af = around (\s e -> SAtom (af s e)) atomParser
 
 slistParser :: AnnoFunc i -> Parser (SExp i Text)
-slistParser af = around (\s e -> SList (af s e)) (V.fromList <$> parens (MP.many (spaceConsumer *> sexpParser af)))
+slistParser af = around (\s e -> SList (af s e)) (Seq.fromList <$> parens (MP.many (spaceConsumer *> sexpParser af)))
 
 sexpParser :: AnnoFunc i -> Parser (SExp i Text)
 sexpParser af = satomParser af <|> slistParser af
