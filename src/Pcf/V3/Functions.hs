@@ -159,6 +159,12 @@ evalProof = id
 call0 :: EvalC m => Seq Name -> Seq (Exp0 Name) -> Scope Int Exp0 Name -> m (Exp0 Name)
 call0 = undefined
 
+modifyKont0 :: MonadState EvalState m => (Kont0 Name -> Kont0 Name) -> m ()
+modifyKont0 = modifying (field @"esKont")
+
+putKont0 :: MonadState EvalState m => Kont0 Name -> m ()
+putKont0 = assign (field @"esKont")
+
 step0 :: EvalC m => Exp0 Name -> m (Maybe (Exp0 Name))
 step0 e =
     case e of
@@ -168,42 +174,45 @@ step0 e =
                 Nothing -> throwError (EvalMissingVarError n)
                 Just e' -> pure (Just e')
         Call0 e xs -> do
-            modifying (field @"esKont") (KontCallFun0 xs)
+            modifyKont0 (KontCallFun0 xs)
             pure (Just e)
         If0 g t e -> do
-            modifying (field @"esKont") (KontIf0 t e)
-            pure (Just e)
+            modifyKont0 (KontIf0 t e)
+            pure (Just g)
         _ -> do
             k <- use (field @"esKont")
-            case k of
-                KontTop0 -> pure Nothing
-                KontCallFun0 xs n ->
-                    case e of
-                        Lam0 nts b ->
-                            case xs of
-                                Seq.Empty ->
-                                    Just <$> (call0 (fst <$> nts) Seq.empty b)
-                                x :<| xs -> do
-                                    modifying (field @"esKont") (KontCallArg0 e Seq.empty xs)
-                                    pure (Just x)
-                        _ -> throwError (EvalNotLambda)
-                _ -> throwError (EvalBoom)
--- eval0 e@Lam0{} = pure e
--- eval0 (Call0 e xs) = do
---     xs' <- traverse eval0 xs
---     e' <- eval0 e
---     case e' of
---         Lam0 ns b -> undefined
---         _ -> undefined
--- eval0 e@Bool0{} = pure e
--- eval0 (If0 g t e) = do
---     g' <- eval0 g
---     case g' of
---         Bool0 True -> eval0 t
---         Bool0 False -> eval0 e
---         _ -> undefined
--- eval0 (Control0 n t b) = undefined
--- eval0 (Throw0 c e) = undefined
+            kstep0 e k
+
+kstep0 :: EvalC m => Exp0 Name -> Kont0 Name -> m (Maybe (Exp0 Name))
+kstep0 e k =
+    case k of
+        KontTop0 -> pure Nothing
+        KontCallFun0 xs n ->
+            case e of
+                Lam0 nts b ->
+                    case xs of
+                        Seq.Empty -> do
+                            putKont0 n
+                            Just <$> (call0 (fst <$> nts) Seq.empty b)
+                        x :<| xs -> do
+                            modifyKont0 (KontCallArg0 e Seq.empty xs)
+                            pure (Just x)
+                _ -> throwError EvalNotLambda
+        KontCallArg0 fun ready notReady n ->
+            let ready' = ready |> e
+            in case notReady of
+                Seq.Empty -> do
+                    case fun of
+                        Lam0 nts b -> do
+                            putKont0 n
+                            Just <$> call0 (fst <$> nts) ready' b
+                        _ -> throwError EvalNotLambda
+                x :<| xs -> do
+                    modifyKont0 (KontCallArg0 fun ready' xs)
+                    pure (Just x)
+        KontIf0 t e n -> undefined
+        KontThrowFun0 y n -> undefined
+        KontThrowArg0 x n -> undefined
 
 bigStep0 :: EvalC m => Exp0 Name -> m (Exp0 Name)
 bigStep0 e = do
