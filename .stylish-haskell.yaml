@@ -33,4 +33,5 @@ language_extensions:
   - ExplicitForAll
   - FlexibleContexts
   - LambdaCase
+  - MultiWayIf
   - TypeApplications

@@ -11,7 +11,7 @@ import           Control.Monad.Reader  (MonadReader, ask)
 import           Control.Monad.State   (MonadState (..), modify)
 import           Data.Foldable         (traverse_)
 import           Data.Generics.Product (field)
-import           Data.Map.Strict       (Map)  -- TODO lazy state!
+import           Data.Map.Strict       (Map)
 import qualified Data.Map.Strict       as M
 import           Data.Sequence         (Seq (..), (|>))
 import qualified Data.Sequence         as Seq
@@ -89,7 +89,7 @@ inferTyCont0 e = do
 izipWithM_ :: Applicative m => (Int -> a -> b -> m ()) -> Seq a -> Seq b -> m ()
 izipWithM_ f as bs = go 0 as bs where
     go i (a :<| as') (b :<| bs') = f i a b *> go (i + 1) as' bs'
-    go _ _ _ = pure ()
+    go _ _ _                     = pure ()
 
 inferType0 :: TypeC m => Exp0 Name -> m Type0
 inferType0 (Var0 n) = do
@@ -169,7 +169,7 @@ looking :: MonadError EvalError m => Seq (Exp0 Name) -> (Int -> m (Exp0 Name))
 looking xs i =
     case Seq.lookup i xs of
         Nothing -> throwError (EvalUnboundVarError i)
-        Just x -> pure x
+        Just x  -> pure x
 
 call0 :: EvalC m => Seq Name -> Seq (Exp0 Name) -> Scope Int Exp0 Name -> m (Maybe (Exp0 Name))
 call0 ns xs b =
@@ -184,12 +184,12 @@ call0 ns xs b =
 kontState :: Kont0 -> Maybe EvalState
 kontState k =
     case k of
-        KontTop0 -> Nothing
-        KontCallFun0 _ s -> Just s
+        KontTop0             -> Nothing
+        KontCallFun0 _ s     -> Just s
         KontCallArg0 _ _ _ s -> Just s
-        KontIf0 _ _ s -> Just s
-        KontThrowFun0 _ s -> Just s
-        KontThrowArg0  _ s -> Just s
+        KontIf0 _ _ s        -> Just s
+        KontThrowFun0 _ s    -> Just s
+        KontThrowArg0  _ s   -> Just s
 
 shiftKont0 :: EvalC m => m ()
 shiftKont0 = do
@@ -221,7 +221,7 @@ popControl n = do
     st <- use (field @"esStack")
     case seqFindR n st of
         Nothing -> throwError (EvalMissingContError n)
-        Just s -> put s
+        Just s  -> put s
 
 step0 :: EvalC m => Exp0 Name -> m (Maybe (Exp0 Name))
 step0 e =
@@ -233,7 +233,7 @@ step0 e =
                 Just et ->
                     case et of
                         ExpTerm ee -> pure (Just ee)
-                        KontTerm -> kstep0 e
+                        KontTerm   -> kstep0 e
         Call0 e xs -> do
             addKont0 (KontCallFun0 xs)
             pure (Just e)
@@ -268,7 +268,7 @@ kstep0 e = do
                 Seq.Empty -> do
                     case fun of
                         Lam0 nts b -> call0 (fst <$> nts) ready' b
-                        _ -> throwError EvalNotLambdaError
+                        _          -> throwError EvalNotLambdaError
                 x :<| xs -> do
                     consumeKont0 (KontCallArg0 fun ready' xs)
                     pure (Just x)
