@@ -10,6 +10,7 @@ import           Control.Monad.Except  (MonadError (..))
 import           Control.Monad.Reader  (MonadReader, ask)
 import           Control.Monad.State   (MonadState (..), modify)
 import           Data.Foldable         (traverse_)
+import           Data.Functor          (($>))
 import           Data.Generics.Product (field)
 import           Data.Map.Strict       (Map)
 import qualified Data.Map.Strict       as M
@@ -40,12 +41,6 @@ throwPathError mp e = do
     p <- mp
     throwError (PathError p e)
 
-throwReaderPathError :: (MonadReader r m, MonadError (PathError p e) m) => (Lens' r p) -> e -> m z
-throwReaderPathError = throwPathError . view
-
-throwStatePathError :: (MonadState s m, MonadError (PathError p e) m) => (Lens' s p) -> e -> m z
-throwStatePathError = throwPathError . use
-
 -- Typing
 
 data TypeError =
@@ -71,15 +66,15 @@ typeProof :: Monad m => (forall n. TypeC n => n a) -> TypeT m a
 typeProof = id
 
 throwTypePathError :: TypeC m => TypeError -> m a
-throwTypePathError = throwReaderPathError (field @"tePath")
+throwTypePathError = throwPathError (view (field @"tePath"))
 
 checkType0 :: TypeC m => Type0 -> Exp0 Name -> m ()
 checkType0 t e = do
     u <- inferType0 e
     unless (u == t) (throwTypePathError (TypeCheckError u t))
 
-withDir0 :: MonadReader TypeEnv m => Dir0 -> m z -> m z
-withDir0 d = localMod (field @"tePath") (flip (|>) d)
+typeWithDir :: MonadReader TypeEnv m => Dir0 -> m z -> m z
+typeWithDir d = localMod (field @"tePath") (flip (|>) d)
 
 inferTyArr0 :: TypeC m => Exp0 Name -> m (Seq Type0, Type0)
 inferTyArr0 e = do
@@ -106,33 +101,33 @@ inferType0 (Var0 n) = do
     maybe (throwTypePathError (TypeMissingVarError n)) pure (M.lookup n tyMap)
 inferType0 (Lam0 nts b) = do
     let k z = maybe (throwTypePathError (TypeUnboundVarError z)) (pure . Var0 . fst) (Seq.lookup z nts)
-    et <- withDir0 DirLamBody0 $ do
+    et <- typeWithDir DirLamBody0 $ do
         e <- instantiateM k b
         localMod (field @"teTyMap") (insertAll nts) (inferType0 e)
     let ts = snd <$> nts
     pure (TyArr0 ts et)
 inferType0 (Call0 e xs) = do
-    (ats, rty) <- withDir0 DirCallFun0 (inferTyArr0 e)
+    (ats, rty) <- typeWithDir DirCallFun0 (inferTyArr0 e)
     let xlen = Seq.length xs
         alen = Seq.length ats
     if xlen > alen
         then throwTypePathError (TypeTooManyArgsError xlen alen)
         else do
-            izipWithM_ (\i at x -> withDir0 (DirCallArg0 i) (checkType0 at x)) ats xs
+            izipWithM_ (\i at x -> typeWithDir (DirCallArg0 i) (checkType0 at x)) ats xs
             pure (if xlen == alen then rty else (TyArr0 (Seq.drop xlen ats) rty))
 inferType0 Bool0{} = pure TyBool0
 inferType0 (If0 g t e) = do
-    withDir0 DirIfGuard0 (checkType0 TyBool0 g)
-    tt <- withDir0 DirIfThen0 (inferType0 t)
-    withDir0 DirIfElse0 (checkType0 tt e)
+    typeWithDir DirIfGuard0 (checkType0 TyBool0 g)
+    tt <- typeWithDir DirIfThen0 (inferType0 t)
+    typeWithDir DirIfElse0 (checkType0 tt e)
     pure tt
 inferType0 (Control0 n t b) = do
     let e = instantiate1 (Var0 n) b
-    localMod (field @"teTyMap") (M.insert n (TyCont0 t)) (withDir0 DirControlBody0 (checkType0 t e))
+    localMod (field @"teTyMap") (M.insert n (TyCont0 t)) (typeWithDir DirControlBody0 (checkType0 t e))
     pure t
 inferType0 (Throw0 c e) = do
-    t <- withDir0 DirThrowFun0 (inferTyCont0 c)
-    withDir0 DirThrowArg0 (checkType0 t e)
+    t <- typeWithDir DirThrowFun0 (inferTyCont0 c)
+    typeWithDir DirThrowArg0 (checkType0 t e)
     pure t
 
 -- Evaluation
@@ -149,7 +144,6 @@ data Kont0 =
 data EvalError =
       EvalTopError
     | EvalUnboundVarError Int
-    | EvalMissingVarError Name
     | EvalMissingContError Name
     | EvalTooManyArgsError Int Int
     | EvalNotLambdaError
@@ -217,7 +211,7 @@ consumeKont0 :: EvalC m => (EvalState -> Kont0) -> m ()
 consumeKont0 f = shiftKont0 >> addKont0 f
 
 pushControl :: MonadState EvalState m => Name -> m ()
-pushControl n = modify $ \s@(EvalState k c m) -> EvalState k (c |> (n, s)) (M.insert n KontTerm m)
+pushControl n = modify (\s@(EvalState k c m) -> EvalState k (c |> (n, s)) (M.insert n KontTerm m))
 
 seqFindR :: Eq a => a -> Seq (a, b) -> Maybe b
 seqFindR a abs = do
@@ -238,7 +232,7 @@ step0 e =
         Var0 n -> do
             tmMap <- use (field @"esTmMap")
             case M.lookup n tmMap of
-                Nothing -> throwError (EvalMissingVarError n)
+                Nothing -> pure (Nothing)
                 Just et ->
                     case et of
                         ExpTerm ee -> pure (Just ee)
