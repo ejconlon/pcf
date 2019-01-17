@@ -71,7 +71,7 @@ liftTypeT :: Monad m => Map Text Type0 -> TypeT m b -> OpsT m b
 liftTypeT tyMap = (fst <$>) . liftFuncT (TypeEnv tyMap Seq.empty) () WrapTypeError
 
 liftEvalT :: Monad m => Map Text (Exp0 Text) -> EvalT m b -> OpsT m b
-liftEvalT expMap = (fst <$>) . liftFuncT (EvalEnv expMap) (EvalState KontTop0) WrapEvalError
+liftEvalT expMap = (fst <$>) . liftFuncT () (EvalState KontTop0 Seq.empty (ExpTerm <$> expMap)) WrapEvalError
 
 -- liftConvT :: Monad m => ConvT n n m b -> OpsT m b
 -- liftConvT = (fst <$>) . liftFuncT (ConvEnv pure) () WrapConvError
@@ -124,7 +124,7 @@ typeCheckOps e = do
     decls <- use (field @"decls")
     liftTypeT decls (inferType0 e)
 
-bigStepOps :: Monad m => Exp0 Text -> OpsT m (Seq (Exp0 Text))
+bigStepOps :: Monad m => Exp0 Text -> OpsT m (Seq (Exp0 Name, EvalState), Maybe EvalError)
 bigStepOps e = do
     defns <- use (field @"defns")
     liftEvalT defns (bigStep0 e)

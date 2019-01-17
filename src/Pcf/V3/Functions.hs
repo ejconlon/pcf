@@ -6,14 +6,14 @@ import           Bound                 (Scope, instantiate1)
 import           Control.Applicative   (empty)
 import           Control.Lens          (assign, modifying, use, view)
 import           Control.Monad         (unless)
-import           Control.Monad.Except  (MonadError, throwError)
+import           Control.Monad.Except  (MonadError (..))
 import           Control.Monad.Reader  (MonadReader, ask)
-import           Control.Monad.State   (MonadState)
+import           Control.Monad.State   (MonadState (..), modify)
 import           Data.Foldable         (traverse_)
 import           Data.Generics.Product (field)
-import           Data.Map.Strict       (Map)
+import           Data.Map.Strict       (Map)  -- TODO lazy state!
 import qualified Data.Map.Strict       as M
-import           Data.Sequence         (Seq (..), (!?), (|>))
+import           Data.Sequence         (Seq (..), (|>))
 import qualified Data.Sequence         as Seq
 import           Data.Text             (Text)
 import qualified Data.Text             as T
@@ -45,10 +45,10 @@ throwEnvError error = do
 data TypeError =
       TypeCheckError Type0 Type0
     | TypeMissingVarError Name
-    | TypeUnboundVar Int
-    | TypeTooManyArgs Int Int
-    | TypeNotLambda
-    | TypeNotCont
+    | TypeUnboundVarError Int
+    | TypeTooManyArgsError Int Int
+    | TypeNotLambdaError
+    | TypeNotContError
     deriving (Generic, Eq, Show)
 
 data TypeEnv = TypeEnv
@@ -77,14 +77,14 @@ inferTyArr0 e = do
     et <- inferType0 e
     case et of
         TyArr0 ats rty -> pure (ats, rty)
-        _              -> throwEnvError TypeNotLambda
+        _              -> throwEnvError TypeNotLambdaError
 
 inferTyCont0 :: TypeC m => Exp0 Name -> m Type0
 inferTyCont0 e = do
     et <- inferType0 e
     case et of
         TyCont0 t -> pure t
-        _         -> throwEnvError TypeNotCont
+        _         -> throwEnvError TypeNotContError
 
 izipWithM_ :: Applicative m => (Int -> a -> b -> m ()) -> Seq a -> Seq b -> m ()
 izipWithM_ f as bs = go 0 as bs where
@@ -96,7 +96,7 @@ inferType0 (Var0 n) = do
     tyMap <- view (field @"teTyMap")
     maybe (throwEnvError (TypeMissingVarError n)) pure (M.lookup n tyMap)
 inferType0 (Lam0 nts b) = do
-    let k z = maybe (throwEnvError (TypeUnboundVar z)) (pure . Var0 . fst) (nts !? z)
+    let k z = maybe (throwEnvError (TypeUnboundVarError z)) (pure . Var0 . fst) (Seq.lookup z nts)
     et <- withDir0 DirLamBody0 $ do
         e <- instantiateM k b
         localMod (field @"teTyMap") (insertAll nts) (inferType0 e)
@@ -107,7 +107,7 @@ inferType0 (Call0 e xs) = do
     let xlen = Seq.length xs
         alen = Seq.length ats
     if xlen > alen
-        then throwEnvError (TypeTooManyArgs xlen alen)
+        then throwEnvError (TypeTooManyArgsError xlen alen)
         else do
             izipWithM_ (\i at x -> withDir0 (DirCallArg0 i) (checkType0 at x)) ats xs
             pure (if xlen == alen then rty else (TyArr0 (Seq.drop xlen ats) rty))
@@ -128,71 +128,129 @@ inferType0 (Throw0 c e) = do
 
 -- Evaluation
 
-data Kont0 a =
+data Kont0 =
     KontTop0
-  | KontCallFun0 (Seq (Exp0 a)) (Kont0 a)
-  | KontCallArg0 (Exp0 a) (Seq (Exp0 a)) (Seq (Exp0 a)) (Kont0 a)
-  | KontIf0 (Exp0 a) (Exp0 a) (Kont0 a)
-  | KontThrowFun0 (Exp0 a) (Kont0 a)
-  | KontThrowArg0 (Exp0 a) (Kont0 a)
-  deriving (Eq, Show, Functor, Foldable, Traversable)
+  | KontCallFun0 (Seq (Exp0 Name)) EvalState
+  | KontCallArg0 (Exp0 Name) (Seq (Exp0 Name)) (Seq (Exp0 Name)) EvalState
+  | KontIf0 (Exp0 Name) (Exp0 Name) EvalState
+  | KontThrowFun0 (Exp0 Name) EvalState
+  | KontThrowArg0 (Exp0 Name) EvalState
+  deriving (Eq, Show)
 
 data EvalError =
-      EvalBoom
+      EvalTopError
+    | EvalUnboundVarError Int
     | EvalMissingVarError Name
-    | EvalTooManyArgs Int Int
-    | EvalNotLambda
-    | EvalNotBool
-    | EvalNotControl
+    | EvalMissingContError Name
+    | EvalTooManyArgsError Int Int
+    | EvalNotLambdaError
+    | EvalNotBoolError
+    | EvalNotControlError
     deriving (Generic, Eq, Show)
 
-data EvalEnv = EvalEnv
-    { eeTmMap :: Map Name (Exp0 Name)
-    } deriving (Generic, Eq, Show)
+data EvalTerm =
+      KontTerm
+    | ExpTerm (Exp0 Name)
+    deriving (Generic, Eq, Show)
 
 data EvalState = EvalState
-    { esKont :: Kont0 Name
+    { esKont  :: Kont0
+    , esStack :: Seq (Name, EvalState)
+    , esTmMap :: Map Name EvalTerm
     } deriving (Generic, Eq, Show)
 
-type EvalC m = (MonadReader EvalEnv m, MonadState EvalState m, MonadError EvalError m)
-type EvalT m a = FuncT EvalEnv EvalState EvalError m a
+type EvalC m = (MonadState EvalState m, MonadError EvalError m)
+type EvalT m a = FuncT () EvalState EvalError m a
 
 evalProof :: Monad m => (forall n. EvalC n => n a) -> EvalT m a
 evalProof = id
+
+looking :: MonadError EvalError m => Seq (Exp0 Name) -> (Int -> m (Exp0 Name))
+looking xs i =
+    case Seq.lookup i xs of
+        Nothing -> throwError (EvalUnboundVarError i)
+        Just x -> pure x
 
 call0 :: EvalC m => Seq Name -> Seq (Exp0 Name) -> Scope Int Exp0 Name -> m (Maybe (Exp0 Name))
 call0 ns xs b =
     let xlen = Seq.length xs
         nlen = Seq.length ns
-    in if | xlen > nlen -> throwError (EvalTooManyArgs xlen nlen)
-          | otherwise -> undefined
+    in if | xlen > nlen -> throwError (EvalTooManyArgsError xlen nlen)
+          | xlen < nlen -> pure Nothing
+          | otherwise -> do
+                shiftKont0
+                Just <$> instantiateM (looking xs) b
 
-modifyKont0 :: MonadState EvalState m => (Kont0 Name -> Kont0 Name) -> m ()
-modifyKont0 = modifying (field @"esKont")
+kontState :: Kont0 -> Maybe EvalState
+kontState k =
+    case k of
+        KontTop0 -> Nothing
+        KontCallFun0 _ s -> Just s
+        KontCallArg0 _ _ _ s -> Just s
+        KontIf0 _ _ s -> Just s
+        KontThrowFun0 _ s -> Just s
+        KontThrowArg0  _ s -> Just s
 
-putKont0 :: MonadState EvalState m => Kont0 Name -> m ()
-putKont0 = assign (field @"esKont")
+shiftKont0 :: EvalC m => m ()
+shiftKont0 = do
+    s0 <- get
+    case kontState (view (field @"esKont") s0) of
+        Nothing -> throwError EvalTopError
+        Just s1 -> put s1
+
+addKont0 :: MonadState EvalState m => (EvalState -> Kont0) -> m ()
+addKont0 f = do
+    s <- get
+    let k = f s
+    assign (field @"esKont") k
+
+consumeKont0 :: EvalC m => (EvalState -> Kont0) -> m ()
+consumeKont0 f = shiftKont0 >> addKont0 f
+
+pushControl :: MonadState EvalState m => Name -> m ()
+pushControl n = modify $ \s@(EvalState k c m) -> EvalState k (c |> (n, s)) (M.insert n KontTerm m)
+
+seqFindR :: Eq a => a -> Seq (a, b) -> Maybe b
+seqFindR a abs = do
+    i <- Seq.findIndexR (\(x, _) -> x == a) abs
+    ab <- Seq.lookup i abs
+    pure (snd ab)
+
+popControl :: EvalC m => Name -> m ()
+popControl n = do
+    st <- use (field @"esStack")
+    case seqFindR n st of
+        Nothing -> throwError (EvalMissingContError n)
+        Just s -> put s
 
 step0 :: EvalC m => Exp0 Name -> m (Maybe (Exp0 Name))
 step0 e =
     case e of
         Var0 n -> do
-            tmMap <- view (field @"eeTmMap")
+            tmMap <- use (field @"esTmMap")
             case M.lookup n tmMap of
                 Nothing -> throwError (EvalMissingVarError n)
-                Just e' -> pure (Just e')
+                Just et ->
+                    case et of
+                        ExpTerm ee -> pure (Just ee)
+                        KontTerm -> kstep0 e
         Call0 e xs -> do
-            modifyKont0 (KontCallFun0 xs)
+            addKont0 (KontCallFun0 xs)
             pure (Just e)
         If0 g t e -> do
-            modifyKont0 (KontIf0 t e)
+            addKont0 (KontIf0 t e)
             pure (Just g)
-        _ -> do
-            k <- use (field @"esKont")
-            kstep0 e k
+        Control0 n _ b -> do
+            pushControl n
+            pure (Just (instantiate1 (Var0 n) b))
+        Throw0 c e -> do
+            addKont0 (KontThrowFun0 e)
+            pure (Just c)
+        _ -> kstep0 e
 
-kstep0 :: EvalC m => Exp0 Name -> Kont0 Name -> m (Maybe (Exp0 Name))
-kstep0 e k =
+kstep0 :: EvalC m => Exp0 Name -> m (Maybe (Exp0 Name))
+kstep0 e = do
+    k <- use (field @"esKont")
     case k of
         KontTop0 -> pure Nothing
         KontCallFun0 xs _ ->
@@ -201,42 +259,47 @@ kstep0 e k =
                     case xs of
                         Seq.Empty -> call0 (fst <$> nts) Seq.empty b
                         x :<| xs -> do
-                            modifyKont0 (KontCallArg0 e Seq.empty xs)
+                            consumeKont0 (KontCallArg0 e Seq.empty xs)
                             pure (Just x)
-                _ -> throwError EvalNotLambda
+                _ -> throwError EvalNotLambdaError
         KontCallArg0 fun ready notReady _ ->
             let ready' = ready |> e
             in case notReady of
                 Seq.Empty -> do
                     case fun of
                         Lam0 nts b -> call0 (fst <$> nts) ready' b
-                        _ -> throwError EvalNotLambda
+                        _ -> throwError EvalNotLambdaError
                 x :<| xs -> do
-                    modifyKont0 (KontCallArg0 fun ready' xs)
+                    consumeKont0 (KontCallArg0 fun ready' xs)
                     pure (Just x)
-        KontIf0 xt xe n ->
+        KontIf0 xt xe _ ->
             case e of
                 Bool0 b -> do
-                    putKont0 n
+                    shiftKont0
                     pure (Just (if b then xt else xe))
-                _ -> throwError EvalNotBool
-        KontThrowFun0 y _ ->
-            case e of
-                Control0{} -> do
-                    modifyKont0 (KontThrowArg0 e)
-                    pure (Just y)
-                _ -> throwError EvalNotControl
-        KontThrowArg0 x n ->
+                _ -> throwError EvalNotBoolError
+        KontThrowFun0 y _ -> do
+            consumeKont0 (KontThrowArg0 e)
+            pure (Just y)
+        KontThrowArg0 x _ ->
             case x of
-                Control0 _ _ b -> do
-                    putKont0 n
-                    pure (Just (instantiate1 e b))
-                _ -> throwError EvalNotControl
+                Var0 n -> do
+                    popControl n
+                    pure (Just e)
+                _ -> throwError EvalNotControlError
 
-bigStep0 :: EvalC m => Exp0 Name -> m (Seq (Exp0 Name))
-bigStep0 e = go e (Seq.empty) where
-    go w trail = do
-        x <- step0 w
-        case x of
-            Nothing -> pure trail
-            Just y  -> go y (trail |> y)
+bigStep0 :: EvalC m => Exp0 Name -> m (Seq (Exp0 Name, EvalState), Maybe EvalError)
+bigStep0 e =
+    let go w trail = do
+            x <- catchError (Right <$> step0 w) (pure . Left)
+            case x of
+                Left e -> pure (trail, Just e)
+                Right a ->
+                    case a of
+                        Nothing -> pure (trail, Nothing)
+                        Just y  -> do
+                            n <- get
+                            go y (trail |> (y, n))
+    in do
+        n <- get
+        go e (Seq.singleton (e, n))
