@@ -4,7 +4,7 @@ module Pcf.V3.Functions where
 
 import           Bound                 (Scope, instantiate1)
 import           Control.Applicative   (empty)
-import           Control.Lens          (assign, modifying, use, view)
+import           Control.Lens          (Lens', assign, modifying, use, view)
 import           Control.Monad         (unless)
 import           Control.Monad.Except  (MonadError (..))
 import           Control.Monad.Reader  (MonadReader, ask)
@@ -30,15 +30,21 @@ insertAll nts m0 = foldl (\m (n, t) -> M.insert n t m) m0 nts
 
 -- Stuff
 
-data EnvError r e = EnvError
-    { eeEnv   :: r
+data PathError p e = PathError
+    { eePath  :: p
     , eeError :: e
     } deriving (Generic, Eq, Show)
 
-throwEnvError :: (MonadReader r m, MonadError (EnvError r e) m) => e -> m z
-throwEnvError error = do
-    env <- ask
-    throwError (EnvError env error)
+throwPathError :: MonadError (PathError p e) m => m p -> e -> m z
+throwPathError mp e = do
+    p <- mp
+    throwError (PathError p e)
+
+throwReaderPathError :: (MonadReader r m, MonadError (PathError p e) m) => (Lens' r p) -> e -> m z
+throwReaderPathError = throwPathError . view
+
+throwStatePathError :: (MonadState s m, MonadError (PathError p e) m) => (Lens' s p) -> e -> m z
+throwStatePathError = throwPathError . use
 
 -- Typing
 
@@ -56,7 +62,7 @@ data TypeEnv = TypeEnv
     , tePath  :: Path0
     } deriving (Generic, Eq, Show)
 
-type FullTypeError = EnvError TypeEnv TypeError
+type FullTypeError = PathError Path0 TypeError
 
 type TypeC m = (MonadReader TypeEnv m, MonadError FullTypeError m)
 type TypeT m a = FuncT TypeEnv () FullTypeError m a
@@ -64,10 +70,13 @@ type TypeT m a = FuncT TypeEnv () FullTypeError m a
 typeProof :: Monad m => (forall n. TypeC n => n a) -> TypeT m a
 typeProof = id
 
+throwTypePathError :: TypeC m => TypeError -> m a
+throwTypePathError = throwReaderPathError (field @"tePath")
+
 checkType0 :: TypeC m => Type0 -> Exp0 Name -> m ()
 checkType0 t e = do
     u <- inferType0 e
-    unless (u == t) (throwEnvError (TypeCheckError u t))
+    unless (u == t) (throwTypePathError (TypeCheckError u t))
 
 withDir0 :: MonadReader TypeEnv m => Dir0 -> m z -> m z
 withDir0 d = localMod (field @"tePath") (flip (|>) d)
@@ -77,14 +86,14 @@ inferTyArr0 e = do
     et <- inferType0 e
     case et of
         TyArr0 ats rty -> pure (ats, rty)
-        _              -> throwEnvError TypeNotLambdaError
+        _              -> throwTypePathError TypeNotLambdaError
 
 inferTyCont0 :: TypeC m => Exp0 Name -> m Type0
 inferTyCont0 e = do
     et <- inferType0 e
     case et of
         TyCont0 t -> pure t
-        _         -> throwEnvError TypeNotContError
+        _         -> throwTypePathError TypeNotContError
 
 izipWithM_ :: Applicative m => (Int -> a -> b -> m ()) -> Seq a -> Seq b -> m ()
 izipWithM_ f as bs = go 0 as bs where
@@ -94,9 +103,9 @@ izipWithM_ f as bs = go 0 as bs where
 inferType0 :: TypeC m => Exp0 Name -> m Type0
 inferType0 (Var0 n) = do
     tyMap <- view (field @"teTyMap")
-    maybe (throwEnvError (TypeMissingVarError n)) pure (M.lookup n tyMap)
+    maybe (throwTypePathError (TypeMissingVarError n)) pure (M.lookup n tyMap)
 inferType0 (Lam0 nts b) = do
-    let k z = maybe (throwEnvError (TypeUnboundVarError z)) (pure . Var0 . fst) (Seq.lookup z nts)
+    let k z = maybe (throwTypePathError (TypeUnboundVarError z)) (pure . Var0 . fst) (Seq.lookup z nts)
     et <- withDir0 DirLamBody0 $ do
         e <- instantiateM k b
         localMod (field @"teTyMap") (insertAll nts) (inferType0 e)
@@ -107,7 +116,7 @@ inferType0 (Call0 e xs) = do
     let xlen = Seq.length xs
         alen = Seq.length ats
     if xlen > alen
-        then throwEnvError (TypeTooManyArgsError xlen alen)
+        then throwTypePathError (TypeTooManyArgsError xlen alen)
         else do
             izipWithM_ (\i at x -> withDir0 (DirCallArg0 i) (checkType0 at x)) ats xs
             pure (if xlen == alen then rty else (TyArr0 (Seq.drop xlen ats) rty))

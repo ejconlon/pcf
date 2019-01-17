@@ -44,7 +44,7 @@ data OpsExc =
     | CannotParseExp (SExp Anno Text)
     | CannotParseStmt (SExp Anno Text)
     | CannotParseSExp Text
-    | WrapTypeError (EnvError TypeEnv TypeError)
+    | WrapTypeError FullTypeError
     | WrapEvalError EvalError
     deriving (Generic, Eq, Show)
 
