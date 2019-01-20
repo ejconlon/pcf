@@ -168,11 +168,11 @@ type EvalT m a = FuncT () EvalState EvalError m a
 evalProof :: Monad m => (forall n. EvalC n => n a) -> EvalT m a
 evalProof = id
 
-looking :: MonadError EvalError m => Seq (Exp0 Name) -> (Int -> m (Exp0 Name))
+looking :: MonadError EvalError m => Seq Name -> (Int -> m (Exp0 Name))
 looking xs i =
     case Seq.lookup i xs of
         Nothing -> throwError (EvalUnboundVarError i)
-        Just x  -> pure x
+        Just x  -> pure (Var0 x)
 
 call0 :: EvalC m => Seq Name -> Seq (Exp0 Name) -> Scope Int Exp0 Name -> m (Maybe (Exp0 Name))
 call0 ns xs b =
@@ -182,7 +182,8 @@ call0 ns xs b =
           | xlen < nlen -> pure Nothing
           | otherwise -> do
                 shiftKont0
-                Just <$> instantiateM (looking xs) b
+                modifying (field @"esTmMap") (\m -> foldl (\m' (n, x) -> M.insert n (ExpTerm x) m) m (Seq.zip ns xs))
+                Just <$> instantiateM (looking ns) b
 
 kontState :: Kont0 -> Maybe EvalState
 kontState k =
