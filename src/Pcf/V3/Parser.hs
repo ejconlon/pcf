@@ -20,7 +20,7 @@ readTy0 (SList _ ts) = case toList ts of
     _                             -> empty
 
 keywords :: Set Text
-keywords = S.fromList ["if", "lam", "throw", "control", "True", "False", "Bool", "Cont", "->"]
+keywords = S.fromList ["if", "lam", "throw", "callcc", "True", "False", "Bool", "Cont", "->"]
 
 readN :: Alternative m => Text -> m Text
 readN n = if S.member n keywords then empty else pure n
@@ -43,7 +43,7 @@ readExp0 (SList _ ts) =
         [SAtom _ "if", g, t, e] -> If0 <$> readExp0 g <*> readExp0 t <*> readExp0 e
         [SAtom _ "throw", c, e] -> Throw0 <$> readExp0 c <*> readExp0 e
         [SAtom _ "lam", SList _ nts, e] -> lam0 <$> traverse readNT nts <*> readExp0 e
-        [SAtom _ "control", SAtom _ n, t, e] -> control0 <$> readN n <*> readTy0 t <*> readExp0 e
+        [SAtom _ "callcc", SAtom _ n, t, e] -> callcc0 <$> readN n <*> readTy0 t <*> readExp0 e
         l:rs -> (\l' rs' -> Call0 l' (Seq.fromList rs')) <$> readExp0 l <*> traverse readExp0 rs
         _ -> empty
 

@@ -121,9 +121,9 @@ inferType0 (If0 g t e) = do
     tt <- typeWithDir DirIfThen0 (inferType0 t)
     typeWithDir DirIfElse0 (checkType0 tt e)
     pure tt
-inferType0 (Control0 n t b) = do
+inferType0 (CallCC0 n t b) = do
     let e = instantiate1 (Var0 n) b
-    localMod (field @"teTyMap") (M.insert n (TyCont0 t)) (typeWithDir DirControlBody0 (checkType0 t e))
+    localMod (field @"teTyMap") (M.insert n (TyCont0 t)) (typeWithDir DirCallCCBody0 (checkType0 t e))
     pure t
 inferType0 (Throw0 c e) = do
     t <- typeWithDir DirThrowFun0 (inferTyCont0 c)
@@ -243,7 +243,7 @@ step0 e =
         If0 g t e -> do
             addKont0 (KontIf0 t e)
             pure (Just g)
-        Control0 n _ b -> do
+        CallCC0 n _ b -> do
             pushControl n
             pure (Just (instantiate1 (Var0 n) b))
         Throw0 c e -> do

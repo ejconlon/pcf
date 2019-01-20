@@ -28,7 +28,7 @@ data Exp0 a =
     | Lam0 (Seq (Name, Type0)) (Scope Int Exp0 a)
     | Bool0 Bool
     | If0 (Exp0 a) (Exp0 a) (Exp0 a)
-    | Control0 Name Type0 (Scope () Exp0 a)
+    | CallCC0 Name Type0 (Scope () Exp0 a)
     | Throw0 (Exp0 a) (Exp0 a)
     deriving (Generic, Functor, Foldable, Traversable)
 
@@ -39,7 +39,7 @@ data Dir0 =
     | DirIfGuard0
     | DirIfThen0
     | DirIfElse0
-    | DirControlBody0
+    | DirCallCCBody0
     | DirThrowFun0
     | DirThrowArg0
     deriving (Eq, Show)
@@ -59,7 +59,7 @@ instance Monad Exp0 where
             Lam0 nts b     -> Lam0 nts (b >>>= f)
             Bool0 b        -> Bool0 b
             If0 g t e      -> If0 (g >>= f) (t >>= f) (e >>= f)
-            Control0 n t b -> Control0 n t (b >>>= f)
+            CallCC0 n t b -> CallCC0 n t (b >>>= f)
             Throw0 c e     -> Throw0 (c >>= f) (e >>= f)
 
 $(deriveEq ''Exp0)
@@ -70,8 +70,8 @@ $(deriveShow1 ''Exp0)
 lam0 :: Seq (Name, Type0) -> Exp0 Name -> Exp0 Name
 lam0 nts = let ns = fst <$> nts in Lam0 nts . abstract (`Seq.elemIndexR` ns)
 
-control0 :: Name -> Type0 -> Exp0 Name -> Exp0 Name
-control0 n t = Control0 n t . abstract1 n
+callcc0 :: Name -> Type0 -> Exp0 Name -> Exp0 Name
+callcc0 n t = CallCC0 n t . abstract1 n
 
 -- Stmt0
 
