@@ -2,12 +2,14 @@ module Pcf.V3.Repl where
 
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.State.Strict (get, put)
+import           Data.Foldable              (traverse_)
 import           Data.Map.Strict            (Map)
 import qualified Data.Map.Strict            as M
 import           Pcf.Core.Cli               (Cli, Command, ReplDirective (..), outputPartsLn,
                                              outputPretty, outputStrLn)
 import           Pcf.Core.NiceRepl          (OptionCommands, ReplDef (..), runRepl,
                                              throwCommandError)
+import           Pcf.V3.Prelude
 import           Pcf.V3.Ops
 
 type Repl = Cli OpsData
@@ -53,12 +55,12 @@ evalCommand input = do
     -- fvs <- quickOpsT (freeVarsOps e)
     -- outputStrLn "Free vars: "
     -- outputPretty fvs
-    ty <- quickOpsT (typeCheckOps e)
-    outputStrLn "Type: "
-    outputPretty ty
-    v <- quickOpsT (bigStepOps e)
-    outputStrLn "Value: "
-    outputPretty v
+    -- ty <- quickOpsT (typeCheckOps e)
+    -- outputStrLn "Type: "
+    -- outputPretty ty
+    -- v <- quickOpsT (bigStepOps e)
+    -- outputStrLn "Value: "
+    -- outputPretty v
     pure ReplContinue
 
 additionalOptions :: ReplOptionCommands
@@ -67,4 +69,10 @@ additionalOptions = M.fromList
     ]
 
 exe :: IO ()
-exe = runRepl (ReplDef "Welcome to the PCF V3 Repl." emptyOpsData additionalOptions execCommand)
+exe = do
+    let (eu, d) = runOps (traverse_ processStmt prelude) emptyOpsData
+    case eu of
+        Left e -> do
+            putStrLn "Error loading prelude:"
+            print e
+        Right () -> runRepl (ReplDef "Welcome to the PCF V3 Repl." d additionalOptions execCommand)

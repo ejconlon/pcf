@@ -1,25 +1,18 @@
-
 {-# LANGUAGE Rank2Types #-}
 
 module Pcf.Core.BoundUtil where
 
 import           Bound                (Scope (..), Var (..), abstract, abstract1, instantiate,
                                        instantiate1)
-import           Control.Lens         (Lens', over)
-import           Control.Monad.Reader (MonadReader, local)
+import           Control.Lens         (Lens')
+import           Control.Monad.Reader (MonadReader)
 import           Data.Foldable        (toList)
 import           Data.List            (foldl')
 import           Data.Map.Strict      (Map)
 import qualified Data.Map.Strict      as M
 import           Data.Vector          (Vector)
 import qualified Data.Vector          as V
-
--- Utils
-
-localMod :: MonadReader x m => Lens' x y -> (y -> y) -> m z -> m z
-localMod lens mod = local (over lens mod)
-
--- Scope manipulation
+import           Pcf.Core.Util        (localMod)
 
 instantiateAndThen :: (MonadReader x m, Monad f, Ord a) => Lens' x (Map a w) -> a -> w -> Scope () f a -> (f a -> m r) -> m r
 instantiateAndThen lens v w bind f = localMod lens (M.insert v w) (f (instantiate1 (pure v) bind))
@@ -63,6 +56,5 @@ scopeRebindLam v c bind f =
     in scopeRebindLet c' bind f
 
 -- Hack!
-
 boundN :: Applicative f => Int -> Scope Int f a
 boundN = Scope . pure . B

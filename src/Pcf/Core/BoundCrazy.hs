@@ -1,11 +1,7 @@
 module Pcf.Core.BoundCrazy where
 
 import Bound         (Scope (..), Var (..))
-import Control.Monad (join)
-
-trabind :: (Traversable f, Monad f, Applicative m)
-        => f a -> (a -> m (f b)) -> m (f b)
-trabind fa k = join <$> traverse k fa
+import Pcf.Core.Util (trabind)
 
 -- class Monad f => Munge f where
 --     munge :: Applicative m => f a -> (a -> m (f b)) -> m (f b)
