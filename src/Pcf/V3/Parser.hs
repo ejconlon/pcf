@@ -21,7 +21,7 @@ readTy0 (SList _ ts) = case toList ts of
 keywords :: Set Text
 keywords = S.fromList
     [ "let", "case", "lam", "throw", "callcc", "data", "decl", "defn"
-    , "Cont", "Fun", "the", "var", "wild", "con"
+    , "Cont", "Fun", "the", "var", "wild", "con", "new"
     ]
 
 readN :: Alternative m => Text -> m Text
@@ -56,7 +56,7 @@ readExp0 :: Alternative m => SExp i Text -> m (Exp0 Text)
 readExp0 (SAtom _ t) = Var0 <$> readN t
 readExp0 (SList _ ts) =
     case toList ts of
-        [SAtom _ "let", (SList _ nes), e] -> let0 <$> traverse readNE nes <*> readExp0 e
+        [SAtom _ "let", n, e, u] -> let0 <$> (readAtom readN) n <*> readExp0 e <*> readExp0 u
         [SAtom _ "the", e, t] -> The0 <$> readExp0 e <*> readTy0 t
         (SAtom _ "case"):e:ps -> Case0 <$> readExp0 e <*> (Seq.fromList <$> traverse readPat0 ps)
         [SAtom _ "throw", c, e] -> Throw0 <$> readExp0 c <*> readExp0 e
@@ -69,7 +69,7 @@ readConDef0 :: Alternative m => SExp i Text -> m ConDef0
 readConDef0 (SAtom _ t) = pure (ConDef0 t Seq.empty)
 readConDef0 (SList _ ts) =
     case toList ts of
-        (SAtom _ n):us -> ConDef0 n <$> (Seq.fromList <$> traverse readNT us)
+        (SAtom _ n):us -> ConDef0 n <$> (Seq.fromList <$> traverse readTy0 us)
         _              -> empty
 
 readStmt0 :: Alternative m => SExp i Text -> m Stmt0

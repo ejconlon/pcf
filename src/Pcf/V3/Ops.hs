@@ -28,22 +28,6 @@ import           Pcf.V3.Functions
 import           Pcf.V3.Parser              (readExp0, readStmt0)
 import           Pcf.V3.Types
 
-data DataDefs = DataDefs
-    { tyNameToConDefs :: Map Text (Seq ConDef0)
-    , conNameToTyName :: Map Text Text
-    } deriving (Generic, Eq, Show)
-
-declaredDataType :: Name -> DataDefs -> Bool
-declaredDataType n dds = M.member n (tyNameToConDefs dds)
-
-addDataDef :: Name -> Seq ConDef0 -> DataDefs -> DataDefs
-addDataDef n cds (DataDefs x y) = DataDefs x' y' where
-    x' = M.insert n cds x
-    y' = foldl (\z cd -> M.insert (conDefName cd) n z) y cds
-
-emptyDataDefs :: DataDefs
-emptyDataDefs = DataDefs M.empty M.empty
-
 data OpsData = OpsData
     { decls :: Map Text Type0
     , defns :: Map Text (Exp0 Text)
@@ -91,8 +75,8 @@ liftFuncT env st wrap act = do
     mr <- lift (runFuncT act env st)
     either (throwError . wrap) pure mr
 
-liftTypeT :: Monad m => Map Text Type0 -> TypeT m b -> OpsT m b
-liftTypeT tyMap = (fst <$>) . liftFuncT (TypeEnv tyMap) () WrapTypeError
+liftTypeT :: Monad m => Map Text Type0 -> DataDefs -> TypeT m b -> OpsT m b
+liftTypeT tyMap dds = (fst <$>) . liftFuncT (TypeEnv tyMap dds Seq.empty) () WrapTypeError
 
 -- liftEvalT :: Monad m => Map Text (Exp0 Text) -> EvalT m b -> OpsT m b
 -- liftEvalT expMap = (fst <$>) . liftFuncT () (EvalState KontTop0 Seq.empty (ExpTerm <$> expMap)) WrapEvalError
@@ -127,7 +111,8 @@ define name e = do
         Nothing -> throwError (NotDeclared name)
         Just expectedTy -> modifyingM (field @"defns") $ \defns -> do
             when (M.member name defns) (throwError (AlreadyDefined name))
-            actualTy <- liftTypeT (M.delete name decls) (checkType0 expectedTy e)
+            dds <- use (field @"dataDefs")
+            actualTy <- liftTypeT (M.delete name decls) dds (checkType0 expectedTy e)
             pure (M.insert name e defns)
 
 dataDef :: Monad m => Text -> Seq ConDef0 -> OpsT m ()

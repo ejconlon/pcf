@@ -30,7 +30,7 @@ data Pat0 a =
 
 data Exp0 a =
       Var0 a
-    | Let0 (Seq (Name, Exp0 a)) (Scope Int Exp0 a)
+    | Let0 Name (Exp0 a) (Scope () Exp0 a)
     | Con0 Name (Seq (Exp0 a))
     | Case0 (Exp0 a) (Seq (Pat0 a))
     | Call0 (Exp0 a) (Seq (Exp0 a))
@@ -40,19 +40,22 @@ data Exp0 a =
     | The0 (Exp0 a) Type0
     deriving (Generic, Functor, Foldable, Traversable)
 
--- data Dir0 =
---       DirCallFun0
---     | DirCallArg0 Int
---     | DirLamBody0
---     | DirConArg0 Int
---     | DirCaseTarget0
---     | DirCasePat0 Int
---     | DirCallCCBody0
---     | DirThrowFun0
---     | DirThrowArg0
---     deriving (Eq, Show)
+data Dir0 =
+      DirLetArg0
+    | DirLetBody0
+    | DirCallFun0
+    | DirCallArg0 Int
+    | DirLamBody0
+    | DirConArg0 Int
+    | DirCaseArg0
+    | DirCasePat0 Int
+    | DirCallCCBody0
+    | DirThrowFun0
+    | DirThrowArg0
+    | DirThe0
+    deriving (Eq, Show)
 
--- type Path0 = Seq Dir0
+type Path0 = Seq Dir0
 
 instance Applicative Exp0 where
     pure = Var0
@@ -63,7 +66,7 @@ instance Monad Exp0 where
     m >>= f =
         case m of
             Var0 a        -> f a
-            Let0 nes b    -> Let0 ((\(n, e) -> (n, e >>= f)) <$> nes) (b >>>= f)
+            Let0 n e b    -> Let0 n (e >>= f) (b >>>= f)
             Con0 n xs     -> Con0 n ((>>= f) <$> xs)
             Case0 e ps    -> Case0 (e >>= f) (flip patBind0 f <$> ps)
             Call0 e xs    -> Call0 (e >>= f) ((>>= f) <$> xs)
@@ -95,8 +98,8 @@ lam0 nts = let ns = fst <$> nts in Lam0 nts . abstract (`Seq.elemIndexR` ns)
 callcc0 :: Name -> Type0 -> Exp0 Name -> Exp0 Name
 callcc0 n t = CallCC0 n t . abstract1 n
 
-let0 :: Seq (Name, Exp0 Name) -> Exp0 Name -> Exp0 Name
-let0 nes = let ns = fst <$> nes in Let0 nes . abstract (`Seq.elemIndexR` ns)
+let0 :: Name -> Exp0 Name -> Exp0 Name -> Exp0 Name
+let0 n e = Let0 n e . abstract1 n
 
 varPat0 :: Name -> Exp0 Name -> Pat0 Name
 varPat0 n = VarPat0 n . abstract1 n
@@ -106,10 +109,13 @@ conPat0 n ns = ConPat0 n ns . abstract (`Seq.elemIndexR` ns)
 
 -- Stmt0 and friends
 
-data ConDef0 = ConDef0 Name (Seq (Name, Type0)) deriving (Generic, Eq, Show)
+data ConDef0 = ConDef0 Name (Seq Type0) deriving (Generic, Eq, Show)
 
 conDefName :: ConDef0 -> Name
 conDefName (ConDef0 n _) = n
+
+conDefTypes :: ConDef0 -> Seq Type0
+conDefTypes (ConDef0 _ ts) = ts
 
 data Stmt0 =
     Decl0 Name Type0
