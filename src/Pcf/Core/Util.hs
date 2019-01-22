@@ -6,6 +6,8 @@ import Control.Lens (Lens', assign, over, use)
 import Control.Monad (join)
 import Control.Monad.Reader (MonadReader, local)
 import Control.Monad.State (MonadState)
+import           Data.Map (Map)
+import qualified Data.Map as M
 import Data.Sequence (Seq (..))
 
 trabind :: (Traversable f, Monad f, Applicative m) => f a -> (a -> m (f b)) -> m (f b)
@@ -24,3 +26,6 @@ modifyingM l f = do
     v <- use l
     v' <- f v
     assign l v'
+
+insertAll :: (Foldable t, Ord a) => t (a, b) -> Map a b -> Map a b
+insertAll nts m0 = foldl (\m (n, t) -> M.insert n t m) m0 nts

@@ -12,8 +12,8 @@ import           Control.Monad.State   (MonadState (..), modify)
 import           Data.Foldable         (traverse_)
 import           Data.Functor          (($>))
 import           Data.Generics.Product (field)
-import           Data.Map.Strict       (Map)
-import qualified Data.Map.Strict       as M
+import           Data.Map              (Map)
+import qualified Data.Map              as M
 import           Data.Sequence         (Seq (..), (|>))
 import qualified Data.Sequence         as Seq
 import           Data.Text             (Text)
@@ -21,13 +21,8 @@ import qualified Data.Text             as T
 import           GHC.Generics          (Generic)
 import           Pcf.Core.BoundCrazy   (instantiateM)
 import           Pcf.Core.Func         (FuncT)
-import           Pcf.Core.Util         (izipWithM_, localMod)
+import           Pcf.Core.Util         (insertAll, izipWithM_, localMod)
 import           Pcf.V3.Types
-
--- Utils
-
-insertAll :: (Foldable t, Ord a) => t (a, b) -> Map a b -> Map a b
-insertAll nts m0 = foldl (\m (n, t) -> M.insert n t m) m0 nts
 
 -- Stuff
 
@@ -40,24 +35,6 @@ throwPathError :: MonadError (PathError p e) m => m p -> e -> m z
 throwPathError mp e = do
     p <- mp
     throwError (PathError p e)
-
--- Defs
-
-data DataDefs = DataDefs
-    { tyNameToConNames :: Map Text (Seq Text)
-    , conNameToTyNameAndDef :: Map Text (Text, ConDef0)
-    } deriving (Generic, Eq, Show)
-
-declaredDataType :: Name -> DataDefs -> Bool
-declaredDataType n dds = M.member n (tyNameToConNames dds)
-
-addDataDef :: Name -> Seq ConDef0 -> DataDefs -> DataDefs
-addDataDef n cds (DataDefs x y) = DataDefs x' y' where
-    x' = M.insert n (conDefName <$> cds) x
-    y' = foldl (\z cd -> M.insert (conDefName cd) (n, cd) z) y cds
-
-emptyDataDefs :: DataDefs
-emptyDataDefs = DataDefs M.empty M.empty
 
 -- Typing
 
@@ -78,7 +55,7 @@ data TypeError =
 
 data TypeEnv = TypeEnv
     { teTyMap    :: Map Name Type0
-    , teDataDefs :: DataDefs
+    , teDataDefs :: DataDefs Type0
     , tePath     :: Path0
     } deriving (Generic, Eq, Show)
 

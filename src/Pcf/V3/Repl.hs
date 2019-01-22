@@ -41,7 +41,7 @@ execCommand input = do
     st <- quickOpsT (parseStmt se)
     outputStrLn "Parsed Stmt: "
     outputPretty st
-    quickOpsT (processStmt st)
+    -- quickOpsT (processStmt st)
     pure ReplContinue
 
 evalCommand :: ReplCommand

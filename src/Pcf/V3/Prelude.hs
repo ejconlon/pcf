@@ -6,8 +6,8 @@ import Pcf.V3.Types
 
 prelude :: Seq Stmt0
 prelude = Seq.fromList
-    [ Data0 "Void" Seq.Empty
-    , Data0 "Unit" (Seq.singleton (ConDef0 "Unit" Seq.Empty))
-    , Data0 "Bool" (Seq.fromList [ConDef0 "True" Seq.Empty, ConDef0 "False" Seq.Empty])
-    , Data0 "Nat" (Seq.fromList [ConDef0 "Zero" Seq.Empty, ConDef0 "Succ" (Seq.singleton (TyCon0 "Nat"))])
+    [ Data "Void" Seq.Empty
+    , Data "Unit" (Seq.singleton (ConDef "Unit" Seq.Empty))
+    , Data "Bool" (Seq.fromList [ConDef "True" Seq.Empty, ConDef "False" Seq.Empty])
+    , Data "Nat" (Seq.fromList [ConDef "Zero" Seq.Empty, ConDef "Succ" (Seq.singleton (TyCon0 "Nat"))])
     ]

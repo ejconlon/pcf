@@ -5,22 +5,84 @@ module Pcf.V3.Types where
 import           Bound         (Scope, abstract, abstract1, (>>>=))
 import           Control.Monad (ap)
 import           Data.Deriving (deriveEq, deriveEq1, deriveShow, deriveShow1)
+import           Data.Map      (Map)
+import qualified Data.Map      as M
 import           Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
+import           Data.String   (IsString)
 import           Data.Text     (Text)
 import           GHC.Generics  (Generic)
 
-type Name = Text
+newtype Name = Name { unName :: Text } deriving (Generic, Eq, Ord, Show, IsString)
 
--- Type0
+data Ident = ConcreteIdent Name | WildIdent deriving (Generic, Eq, Show)
 
-data Type0 =
-      TyCon0 Name
-    | TyFun0 (Seq Type0) Type0
-    | TyCont0 Type0
+data ConDef t = ConDef
+    { conDefName :: Name
+    , conDefTypes :: Seq t
+    } deriving (Generic, Eq, Show)
+
+data Stmt t e =
+      Decl Name t
+    | Defn Name e
+    | Data Name (Seq (ConDef t))
     deriving (Generic, Eq, Show)
 
+-- Defs
+
+data DataDefs t = DataDefs
+    { tyNameToConNames :: Map Name (Seq Name)
+    , conNameToTyNameAndDef :: Map Name (Name, ConDef t)
+    } deriving (Generic, Eq, Show)
+
+declaredDataType :: Name -> DataDefs t -> Bool
+declaredDataType n dds = M.member n (tyNameToConNames dds)
+
+addDataDef :: Name -> Seq (ConDef t) -> DataDefs t -> DataDefs t
+addDataDef n cds (DataDefs x y) = DataDefs x' y' where
+    x' = M.insert n (conDefName <$> cds) x
+    y' = foldl (\z cd -> M.insert (conDefName cd) (n, cd) z) y cds
+
+emptyDataDefs :: DataDefs t
+emptyDataDefs = DataDefs M.empty M.empty
+
+-- ExpX and friends
+
+data TypeX =
+      TyVarX Name
+    | TyFunX (Seq TypeX) TypeX
+    | TyCallX TypeX (Seq TypeX)
+    deriving (Generic, Eq, Show)
+
+data PatL =
+      VarPatL Ident
+    | ConPatL Name (Seq Ident)
+    deriving (Generic, Eq, Show)
+
+data PatX = PatX PatL ExpX deriving (Generic, Eq, Show)
+
+data ExpX =
+      VarX Name
+    | LetX Ident ExpX ExpX
+    | CaseX ExpX (Seq PatX)
+    | CallX ExpX (Seq ExpX)
+    | LamX (Seq (Ident, TypeX)) ExpX
+    | CallCCX Name TypeX ExpX
+    | ThrowX ExpX ExpX
+    | TheX ExpX TypeX
+    deriving (Generic, Eq, Show)
+
+type ConDefX = ConDef TypeX
+type StmtX = Stmt TypeX ExpX
+type DataDefsX = DataDefs TypeX
+
 -- Exp0 and friends
+
+data Type0 =
+    TyCon0 Name
+  | TyFun0 (Seq Type0) Type0
+  | TyCont0 Type0
+  deriving (Generic, Eq, Show)
 
 data Pat0 a =
       VarPat0 Name (Scope () Exp0 a)
@@ -92,33 +154,21 @@ $(deriveShow ''Exp0)
 $(deriveEq1 ''Exp0)
 $(deriveShow1 ''Exp0)
 
-lam0 :: Seq (Name, Type0) -> Exp0 Name -> Exp0 Name
-lam0 nts = let ns = fst <$> nts in Lam0 nts . abstract (`Seq.elemIndexR` ns)
+-- lam0 :: Seq (Name, Type0) -> Exp0 Name -> Exp0 Name
+-- lam0 nts = let ns = fst <$> nts in Lam0 nts . abstract (`Seq.elemIndexR` ns)
 
-callcc0 :: Name -> Type0 -> Exp0 Name -> Exp0 Name
-callcc0 n t = CallCC0 n t . abstract1 n
+-- callcc0 :: Name -> Type0 -> Exp0 Name -> Exp0 Name
+-- callcc0 n t = CallCC0 n t . abstract1 n
 
-let0 :: Name -> Exp0 Name -> Exp0 Name -> Exp0 Name
-let0 n e = Let0 n e . abstract1 n
+-- let0 :: Name -> Exp0 Name -> Exp0 Name -> Exp0 Name
+-- let0 n e = Let0 n e . abstract1 n
 
-varPat0 :: Name -> Exp0 Name -> Pat0 Name
-varPat0 n = VarPat0 n . abstract1 n
+-- varPat0 :: Name -> Exp0 Name -> Pat0 Name
+-- varPat0 n = VarPat0 n . abstract1 n
 
-conPat0 :: Name -> Seq Name -> Exp0 Name -> Pat0 Name
-conPat0 n ns = ConPat0 n ns . abstract (`Seq.elemIndexR` ns)
+-- conPat0 :: Name -> Seq Name -> Exp0 Name -> Pat0 Name
+-- conPat0 n ns = ConPat0 n ns . abstract (`Seq.elemIndexR` ns)
 
--- Stmt0 and friends
-
-data ConDef0 = ConDef0 Name (Seq Type0) deriving (Generic, Eq, Show)
-
-conDefName :: ConDef0 -> Name
-conDefName (ConDef0 n _) = n
-
-conDefTypes :: ConDef0 -> Seq Type0
-conDefTypes (ConDef0 _ ts) = ts
-
-data Stmt0 =
-    Decl0 Name Type0
-  | Defn0 Name (Exp0 Name)
-  | Data0 Name (Seq ConDef0)
-  deriving (Generic, Eq, Show)
+type ConDef0 = ConDef Type0
+type Stmt0 = Stmt Type0 (Exp0 Name)
+type DataDefs0 = DataDefs Type0
