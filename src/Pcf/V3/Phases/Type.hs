@@ -29,8 +29,8 @@ data TypeError =
     | TypePatCheckError Type0 Type0 Type0
     | TypeMissingVarError Name
     | TypeUnboundVarError Int
-    | TypeTooManyArgsError Int Int
-    | TypeConTooManyArgsError Name Int Int
+    | TypeLamArityError Int Int
+    | TypeConArityError Name Int Int
     | TypeNotFunError
     | TypeNotDataError
     | TypeNotContError
@@ -132,11 +132,11 @@ inferType0 (Con0 n xs) = do
                 xlen = Seq.length xs
                 alen = Seq.length ats
                 rty = TyCon0 tyName
-            if xlen > alen  -- TODO just fail instead
-                then throwTypePathError (TypeConTooManyArgsError n xlen alen)
+            if xlen /= alen
+                then throwTypePathError (TypeConArityError n xlen alen)
                 else do
                     izipWithM_ (\i at x -> typeWithDir (DirConArg0 i) (checkType0 at x)) ats xs
-                    pure (if xlen == alen then rty else (TyFun0 (Seq.drop xlen ats) rty))
+                    pure rty
 inferType0 (Case0 e ps) = do
     t <- typeWithDir DirCaseArg0 (inferType0 e)
     case ps of
@@ -149,11 +149,11 @@ inferType0 (Call0 e xs) = do
     (ats, rty) <- typeWithDir DirCallFun0 (inferTyArr0 e)
     let xlen = Seq.length xs
         alen = Seq.length ats
-    if xlen > alen
-        then throwTypePathError (TypeTooManyArgsError xlen alen)
+    if xlen /= alen
+        then throwTypePathError (TypeLamArityError xlen alen)
         else do
             izipWithM_ (\i at x -> typeWithDir (DirCallArg0 i) (checkType0 at x)) ats xs
-            pure (if xlen == alen then rty else (TyFun0 (Seq.drop xlen ats) rty))
+            pure rty
 inferType0 (Lam0 its b) = do
     let nts = do
             (i, t) <- its
