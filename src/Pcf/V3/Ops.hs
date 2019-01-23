@@ -24,9 +24,9 @@ import           Pcf.Core.Func
 import           Pcf.Core.SExp              (SExp)
 import           Pcf.Core.SExp.Parser       (Anno, readSExpAnno)
 import           Pcf.Core.Util              (modifyingM)
-import           Pcf.V3.Functions
 import           Pcf.V3.Parser              (readExpX, readStmtX)
 import           Pcf.V3.Phases.Convert
+import           Pcf.V3.Phases.Type
 import           Pcf.V3.Types
 
 data OpsData = OpsData
@@ -49,7 +49,7 @@ data OpsExc =
     | CannotParseStmt (SExp Anno Text)
     | CannotParseSExp Text
     | WrapConvertError FullConvertError
-    -- | WrapTypeError FullTypeError
+    | WrapTypeError FullTypeError
     -- | WrapEvalError EvalError
     deriving (Generic, Eq, Show)
 
@@ -85,8 +85,8 @@ handleConvertT act = do
     dds <- use (field @"dataDefs")
     liftConvertT dds act
 
--- liftTypeT :: Monad m => Map Name Type0 -> DataDefs0 -> TypeT m b -> OpsT m b
--- liftTypeT tyMap dds = (fst <$>) . liftFuncT (TypeEnv tyMap dds Seq.empty) () WrapTypeError
+liftTypeT :: Monad m => Map Name Type0 -> DataDefs0 -> TypeT m b -> OpsT m b
+liftTypeT tyMap dds = (fst <$>) . liftFuncT (TypeEnv tyMap dds Seq.empty) () WrapTypeError
 
 -- liftEvalT :: Monad m => Map Text (Exp0 Text) -> EvalT m b -> OpsT m b
 -- liftEvalT expMap = (fst <$>) . liftFuncT () (EvalState KontTop0 Seq.empty (ExpTerm <$> expMap)) WrapEvalError
@@ -122,8 +122,7 @@ define name e = do
         Just expectedTy -> modifyingM (field @"defns") $ \defns -> do
             when (M.member name defns) (throwError (AlreadyDefined name))
             dds <- use (field @"dataDefs")
-            -- TODO typecheck
-            -- liftTypeT (M.delete name decls) dds (checkType0 expectedTy e)
+            liftTypeT (M.delete name decls) dds (checkType0 expectedTy e)
             pure (M.insert name e defns)
 
 dataDef :: Monad m => Name -> Seq ConDef0 -> OpsT m ()
@@ -143,10 +142,11 @@ handleConvertStmt = handleConvertT . convertStmt
 handleConvertExp :: Monad m => ExpX -> OpsT m (Exp0 Name)
 handleConvertExp = handleConvertT . convertExp
 
--- typeCheckOps :: Monad m => Exp0 Text -> OpsT m Type0
--- typeCheckOps e = do
---     decls <- use (field @"decls")
---     liftTypeT decls (inferType0 e)
+typeCheckOps :: Monad m => Exp0 Name -> OpsT m Type0
+typeCheckOps e = do
+    decls <- use (field @"decls")
+    dataDefs <- use (field @"dataDefs")
+    liftTypeT decls dataDefs (inferType0 e)
 
 -- bigStepOps :: Monad m => Exp0 Text -> OpsT m (Seq (Exp0 Name, EvalState), Maybe EvalError)
 -- bigStepOps e = do

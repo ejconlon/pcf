@@ -7,6 +7,7 @@ import           Control.Monad.Except  (MonadError (throwError))
 import           Control.Monad.Reader  (MonadReader)
 import           Data.Generics.Product (field)
 import qualified Data.Map              as M
+import           Data.Maybe            (isJust)
 import           Data.Sequence         (Seq)
 import qualified Data.Sequence         as Seq
 import           GHC.Generics          (Generic)
@@ -20,7 +21,6 @@ data ConvertEnv t = ConvertEnv
 data ConvertError =
       ConvertUnknownTypeError Name
     | ConvertUnknownConError Name
-    | ConvertConArityMismatch Name Int Int
     deriving (Generic, Show, Eq)
 
 type FullConvertError = ConvertError
@@ -48,15 +48,13 @@ lookupCon n = do
     let mcd = snd <$> M.lookup n (conNameToTyNameAndDef dds)
     pure mcd
 
+conExists :: ConvertC t m => Name -> m Bool
+conExists n = isJust <$> lookupCon n
+
 getCon :: ConvertC t m => Name -> m (ConDef t)
 getCon n = do
     mcd <- lookupCon n
     maybe (throwError (ConvertUnknownConError n)) pure mcd
-
-assertArityMatch :: ConvertC t m => ConDef t -> Int -> m ()
-assertArityMatch (ConDef n ts) i =
-    let j = Seq.length ts
-    in unless (j == i) (throwError (ConvertConArityMismatch n j i))
 
 convertPat :: ConvertC t m => PatX -> m (Pat0 Name)
 convertPat (PatX p e) =
@@ -68,7 +66,6 @@ convertPat (PatX p e) =
                 WildIdent -> WildPat0 <$> e'
         ConPatL n is -> do
             cd <- getCon n
-            assertArityMatch cd (Seq.length is)
             let k a = Seq.findIndexR (\i -> i == ConcreteIdent a) is
             e' <- convertExp e
             let e'' = abstract k e'
@@ -77,12 +74,8 @@ convertPat (PatX p e) =
 convertConDef :: ConvertC t m => ConDefX -> m ConDef0
 convertConDef (ConDef n ts) = ConDef n <$> traverse convertTy ts
 
-convertCon :: ConvertC t m => ConDef t -> Seq ExpX -> m (Exp0 Name)
-convertCon (ConDef n ts) xs =
-    let xlen = Seq.length xs
-        alen = Seq.length ts
-    in if | xlen /= alen -> throwError (ConvertConArityMismatch n alen xlen)
-          | otherwise -> Con0 n <$> traverse convertExp xs
+convertCon :: ConvertC t m => Name -> Seq ExpX -> m (Exp0 Name)
+convertCon n xs = Con0 n <$> traverse convertExp xs
 
 convertCall :: ConvertC t m => ExpX -> Seq ExpX -> m (Exp0 Name)
 convertCall e xs = Call0 <$> convertExp e <*> traverse convertExp xs
@@ -91,8 +84,8 @@ convertExp :: ConvertC t m => ExpX -> m (Exp0 Name)
 convertExp ex =
     case ex of
         VarX n -> do
-            mcd <- lookupCon n
-            maybe (pure (Var0 n)) (flip convertCon Seq.empty) mcd
+            exists <- conExists n
+            if exists then convertCon n Seq.empty else pure (Var0 n)
         LetX i e u -> Let0 i <$> convertExp e <*> u'' where
             u' = convertExp u
             k = case i of
@@ -103,10 +96,8 @@ convertExp ex =
         CallX e xs ->
             case e of
                 VarX n -> do
-                    mcd <- lookupCon n
-                    case mcd of
-                        Just cd -> convertCon cd xs
-                        Nothing -> convertCall e xs
+                    exists <- conExists n
+                    if exists then convertCon n xs else convertCall e xs
                 _ -> convertCall e xs
         LamX its e -> Lam0 <$> its' <*> e'' where
             its' = traverse (\(i, t) -> (i,) <$> convertTy t) its

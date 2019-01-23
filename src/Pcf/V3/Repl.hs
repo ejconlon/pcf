@@ -58,12 +58,12 @@ evalCommand input = do
     e0 <- quickOpsT (handleConvertExp ex)
     outputStrLn "Converted Exp0: "
     outputPretty e0
-    -- fvs <- quickOpsT (freeVarsOps e)
-    -- outputStrLn "Free vars: "
-    -- outputPretty fvs
-    -- ty <- quickOpsT (typeCheckOps e)
-    -- outputStrLn "Type: "
-    -- outputPretty ty
+    fvs <- quickOpsT (freeVarsOps e0)
+    outputStrLn "Free vars: "
+    outputPretty fvs
+    ty <- quickOpsT (typeCheckOps e0)
+    outputStrLn "Type: "
+    outputPretty ty
     -- v <- quickOpsT (bigStepOps e)
     -- outputStrLn "Value: "
     -- outputPretty v
