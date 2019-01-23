@@ -4,6 +4,7 @@ module Pcf.V3.Types where
 
 import           Bound         (Scope, abstract, abstract1, (>>>=))
 import           Control.Monad (ap)
+import           Control.Monad.Except (MonadError (throwError))
 import           Data.Deriving (deriveEq, deriveEq1, deriveShow, deriveShow1)
 import           Data.Map      (Map)
 import qualified Data.Map      as M
@@ -46,12 +47,34 @@ addDataDef n cds (DataDefs x y) = DataDefs x' y' where
 emptyDataDefs :: DataDefs t
 emptyDataDefs = DataDefs M.empty M.empty
 
+isSingletonConstructor :: Name -> DataDefs t -> Bool
+isSingletonConstructor n dds =
+    case M.lookup n (conNameToTyNameAndDef dds) of
+        Just (_, cd) -> Seq.null (conDefTypes cd)
+        Nothing -> False
+
+-- TODO this will change when types get arguments
+isSaturatedType :: Name -> DataDefs t -> Bool
+isSaturatedType = declaredDataType
+
+-- PathError
+
+data PathError p e = PathError
+    { pePath  :: p
+    , peError :: e
+    } deriving (Generic, Eq, Show)
+
+throwPathError :: MonadError (PathError p e) m => m p -> e -> m z
+throwPathError mp e = do
+    p <- mp
+    throwError (PathError p e)
+
 -- ExpX and friends
 
 data TypeX =
       TyVarX Name
     | TyFunX (Seq TypeX) TypeX
-    | TyCallX TypeX (Seq TypeX)
+    | TyContX TypeX
     deriving (Generic, Eq, Show)
 
 data PatL =
@@ -86,17 +109,17 @@ data Type0 =
 
 data Pat0 a =
       VarPat0 Name (Scope () Exp0 a)
-    | ConPat0 Name (Seq Name) (Scope Int Exp0 a)
+    | ConPat0 Name (Seq Ident) (Scope Int Exp0 a)
     | WildPat0 (Exp0 a)
     deriving (Generic, Functor, Foldable, Traversable)
 
 data Exp0 a =
       Var0 a
-    | Let0 Name (Exp0 a) (Scope () Exp0 a)
+    | Let0 Ident (Exp0 a) (Scope () Exp0 a)
     | Con0 Name (Seq (Exp0 a))
     | Case0 (Exp0 a) (Seq (Pat0 a))
     | Call0 (Exp0 a) (Seq (Exp0 a))
-    | Lam0 (Seq (Name, Type0)) (Scope Int Exp0 a)
+    | Lam0 (Seq (Ident, Type0)) (Scope Int Exp0 a)
     | CallCC0 Name Type0 (Scope () Exp0 a)
     | Throw0 (Exp0 a) (Exp0 a)
     | The0 (Exp0 a) Type0
@@ -115,6 +138,8 @@ data Dir0 =
     | DirThrowFun0
     | DirThrowArg0
     | DirThe0
+    | DirPartialFun0
+    | DirPartialArg0 Int
     deriving (Eq, Show)
 
 type Path0 = Seq Dir0

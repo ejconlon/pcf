@@ -45,9 +45,13 @@ default-extensions:
   - DeriveTraversable
   - FlexibleContexts
   - GeneralizedNewtypeDeriving
+  - KindSignatures
   - LambdaCase
+  - MultiParamTypeClasses
   - MultiWayIf
   - OverloadedStrings
+  - Rank2Types
+  - TupleSections
   - TypeApplications
 
 library:

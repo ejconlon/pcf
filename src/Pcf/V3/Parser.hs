@@ -42,7 +42,7 @@ readTyX :: Alternative m => SExp i Text -> m TypeX
 readTyX (SAtom _ t) = TyVarX <$> readName t
 readTyX (SList _ ts) = case toList ts of
     [SAtom _ "Fun", SList _ us, r] -> TyFunX <$> traverse readTyX us <*> readTyX r
-    l:rs -> TyCallX <$> readTyX l <*> (Seq.fromList <$> traverse readTyX rs)
+    [SAtom _ "Cont", t] -> TyContX <$> readTyX t
     _ -> empty
 
 readIX :: Alternative m => SExp i Text -> m (Ident, TypeX)

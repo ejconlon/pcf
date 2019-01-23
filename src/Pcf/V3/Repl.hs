@@ -38,9 +38,12 @@ execCommand input = do
     se <- quickOpsT (parseSExp input)
     outputStrLn "Parsed SExp: "
     outputPretty se
-    st <- quickOpsT (parseStmt se)
-    outputStrLn "Parsed Stmt: "
-    outputPretty st
+    stx <- quickOpsT (parseStmt se)
+    outputStrLn "Parsed StmtX: "
+    outputPretty stx
+    st0 <- quickOpsT (handleConvertStmt stx)
+    outputStrLn "Converted Stmt0:"
+    outputPretty st0
     -- quickOpsT (processStmt st)
     pure ReplContinue
 
@@ -49,9 +52,12 @@ evalCommand input = do
     se <- quickOpsT (parseSExp input)
     outputStrLn "Parsed SExp: "
     outputPretty se
-    e <- quickOpsT (parseExp se)
-    outputStrLn "Parsed Exp: "
-    outputPretty e
+    ex <- quickOpsT (parseExp se)
+    outputStrLn "Parsed ExpX: "
+    outputPretty ex
+    e0 <- quickOpsT (handleConvertExp ex)
+    outputStrLn "Converted Exp0: "
+    outputPretty e0
     -- fvs <- quickOpsT (freeVarsOps e)
     -- outputStrLn "Free vars: "
     -- outputPretty fvs

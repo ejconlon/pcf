@@ -26,6 +26,7 @@ import           Pcf.Core.SExp.Parser       (Anno, readSExpAnno)
 import           Pcf.Core.Util              (modifyingM)
 import           Pcf.V3.Functions
 import           Pcf.V3.Parser              (readExpX, readStmtX)
+import           Pcf.V3.Phases.Convert
 import           Pcf.V3.Types
 
 data OpsData = OpsData
@@ -47,7 +48,8 @@ data OpsExc =
     | CannotParseExp (SExp Anno Text)
     | CannotParseStmt (SExp Anno Text)
     | CannotParseSExp Text
-    | WrapTypeError FullTypeError
+    | WrapConvertError FullConvertError
+    -- | WrapTypeError FullTypeError
     -- | WrapEvalError EvalError
     deriving (Generic, Eq, Show)
 
@@ -75,8 +77,16 @@ liftFuncT env st wrap act = do
     mr <- lift (runFuncT act env st)
     either (throwError . wrap) pure mr
 
-liftTypeT :: Monad m => Map Name Type0 -> DataDefs0 -> TypeT m b -> OpsT m b
-liftTypeT tyMap dds = (fst <$>) . liftFuncT (TypeEnv tyMap dds Seq.empty) () WrapTypeError
+liftConvertT :: Monad m => DataDefs t -> ConvertT t m b -> OpsT m b
+liftConvertT dds = (fst <$>) . liftFuncT (ConvertEnv dds) () WrapConvertError
+
+handleConvertT :: Monad m => ConvertT Type0 m b -> OpsT m b
+handleConvertT act = do
+    dds <- use (field @"dataDefs")
+    liftConvertT dds act
+
+-- liftTypeT :: Monad m => Map Name Type0 -> DataDefs0 -> TypeT m b -> OpsT m b
+-- liftTypeT tyMap dds = (fst <$>) . liftFuncT (TypeEnv tyMap dds Seq.empty) () WrapTypeError
 
 -- liftEvalT :: Monad m => Map Text (Exp0 Text) -> EvalT m b -> OpsT m b
 -- liftEvalT expMap = (fst <$>) . liftFuncT () (EvalState KontTop0 Seq.empty (ExpTerm <$> expMap)) WrapEvalError
@@ -112,7 +122,8 @@ define name e = do
         Just expectedTy -> modifyingM (field @"defns") $ \defns -> do
             when (M.member name defns) (throwError (AlreadyDefined name))
             dds <- use (field @"dataDefs")
-            actualTy <- liftTypeT (M.delete name decls) dds (checkType0 expectedTy e)
+            -- TODO typecheck
+            -- liftTypeT (M.delete name decls) dds (checkType0 expectedTy e)
             pure (M.insert name e defns)
 
 dataDef :: Monad m => Name -> Seq ConDef0 -> OpsT m ()
@@ -125,6 +136,12 @@ processStmt :: Monad m => Stmt0 -> OpsT m ()
 processStmt (Decl name ty)  = declare name ty
 processStmt (Defn name exp) = define name exp
 processStmt (Data name cds) = dataDef name cds
+
+handleConvertStmt :: Monad m => StmtX -> OpsT m Stmt0
+handleConvertStmt = handleConvertT . convertStmt
+
+handleConvertExp :: Monad m => ExpX -> OpsT m (Exp0 Name)
+handleConvertExp = handleConvertT . convertExp
 
 -- typeCheckOps :: Monad m => Exp0 Text -> OpsT m Type0
 -- typeCheckOps e = do
