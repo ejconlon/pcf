@@ -2,7 +2,7 @@ module Pcf.V3.Phases.Convert where
 
 import           Bound                 (abstract, abstract1)
 import           Control.Lens          (view)
-import           Control.Monad         (unless)
+import           Control.Monad         (unless, when)
 import           Control.Monad.Except  (MonadError (throwError))
 import           Control.Monad.Reader  (MonadReader)
 import           Control.Monad.Trans   (lift)
@@ -13,6 +13,7 @@ import           Data.Sequence         (Seq)
 import qualified Data.Sequence         as Seq
 import           GHC.Generics          (Generic)
 import           Pcf.Core.Func
+import           Pcf.Core.Util         (ensure)
 import           Pcf.V3.Types
 
 data ConvertEnv t = ConvertEnv
@@ -22,6 +23,7 @@ data ConvertEnv t = ConvertEnv
 data ConvertError =
       ConvertUnknownTypeError Name
     | ConvertUnknownConError Name
+    | ConvertShadowConError Name
     deriving (Generic, Show, Eq)
 
 type ConvertC t m = (MonadReader (ConvertEnv t) m, MonadError ConvertError m)
@@ -30,22 +32,10 @@ type ConvertT t m a = FuncT (ConvertEnv t) () ConvertError m a
 convertProof :: Monad m => (forall n. ConvertC t n => n a) -> ConvertT t m a
 convertProof = id
 
-convertTy :: ConvertC t m => TypeX -> m Type0
-convertTy ty =
-    case ty of
-        TyVarX n -> do
-            dds <- view (field @"ceDataDefs")
-            if declaredDataType n dds
-                then pure (TyCon0 n)
-                else throwError (ConvertUnknownTypeError n)
-        TyFunX xs r -> TyFun0 <$> traverse convertTy xs <*> convertTy r
-        TyContX t -> TyCont0 <$> convertTy t
-
 lookupCon :: ConvertC t m => Name -> m (Maybe (ConDef t))
 lookupCon n = do
     dds <- view (field @"ceDataDefs")
-    let mcd = snd <$> M.lookup n (conNameToTyNameAndDef dds)
-    pure mcd
+    pure (snd <$> M.lookup n (conNameToTyNameAndDef dds))
 
 conExists :: ConvertC t m => Name -> m Bool
 conExists n = isJust <$> lookupCon n
@@ -54,6 +44,22 @@ getCon :: ConvertC t m => Name -> m (ConDef t)
 getCon n = do
     mcd <- lookupCon n
     maybe (throwError (ConvertUnknownConError n)) pure mcd
+
+tyExists :: ConvertC t m => Name -> m Bool
+tyExists n = do
+    dds <- view (field @"ceDataDefs")
+    pure (declaredDataType n dds)
+
+convertTy :: ConvertC t m => TypeX -> m Type0
+convertTy ty =
+    case ty of
+        TyVarX n -> do
+            exists <- tyExists n
+            if exists
+                then pure (TyCon0 n)
+                else throwError (ConvertUnknownTypeError n)
+        TyFunX xs r -> TyFun0 <$> traverse convertTy xs <*> convertTy r
+        TyContX t -> TyCont0 <$> convertTy t
 
 convertPat :: ConvertC t m => PatX -> m (Pat0 Name)
 convertPat (PatX p e) =
@@ -70,6 +76,7 @@ convertPat (PatX p e) =
                 WildIdent       -> pure (WildPat0 e')
         ConPatL n is -> do
             cd <- getCon n
+            traverse validateVarIdent is
             let k a = Seq.findIndexR (\i -> i == ConcreteIdent a) is
             e' <- convertExp e
             let e'' = abstract k e'
@@ -84,13 +91,24 @@ convertCon n xs = Con0 n <$> traverse convertExp xs
 convertCall :: ConvertC t m => ExpX -> Seq ExpX -> m (Exp0 Name)
 convertCall e xs = Call0 <$> convertExp e <*> traverse convertExp xs
 
+validateVarName :: ConvertC t m => Name -> m ()
+validateVarName n = do
+    exists <- conExists n
+    when exists (throwError (ConvertShadowConError n))
+
+validateVarIdent :: ConvertC t m => Ident -> m ()
+validateVarIdent i =
+    case i of
+        ConcreteIdent n -> validateVarName n
+        WildIdent -> pure ()
+
 convertExp :: ConvertC t m => ExpX -> m (Exp0 Name)
 convertExp ex =
     case ex of
         VarX n -> do
             exists <- conExists n
             if exists then convertCon n Seq.empty else pure (Var0 n)
-        LetX i e u -> Let0 i <$> convertExp e <*> u'' where
+        LetX i e u -> Let0 <$> ensure validateVarIdent i <*> convertExp e <*> u'' where
             u' = convertExp u
             k = case i of
                 ConcreteIdent y -> \a -> if y == a then Just () else Nothing
@@ -104,11 +122,11 @@ convertExp ex =
                     if exists then convertCon n xs else convertCall e xs
                 _ -> convertCall e xs
         LamX its e -> Lam0 <$> its' <*> e'' where
-            its' = traverse (\(i, t) -> (i,) <$> convertTy t) its
+            its' = traverse (\(i, t) -> (,) <$> ensure validateVarIdent i <*> convertTy t) its
             e' = convertExp e
             k a = Seq.findIndexR (\(i, _) -> i == ConcreteIdent a) its
             e'' = abstract k <$> e'
-        CallCCX n ty e -> CallCC0 n <$> convertTy ty <*> e'' where
+        CallCCX n ty e -> CallCC0 <$> ensure validateVarName n <*> convertTy ty <*> e'' where
             e' = convertExp e
             e'' = abstract1 n <$> e'
         ThrowX c e -> Throw0 <$> convertExp c <*> convertExp e

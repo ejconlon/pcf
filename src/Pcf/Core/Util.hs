@@ -60,3 +60,6 @@ lookupR a abs = do
     i <- Seq.findIndexR (\(x, _) -> x == a) abs
     ab <- Seq.lookup i abs
     pure (snd ab)
+
+ensure :: Monad m => (a -> m ()) -> a -> m a
+ensure f a = f a >> pure a
