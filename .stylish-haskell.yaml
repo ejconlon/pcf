@@ -34,4 +34,6 @@ language_extensions:
   - FlexibleContexts
   - LambdaCase
   - MultiWayIf
+  - Rank2Types
+  - TupleSections
   - TypeApplications

@@ -12,7 +12,7 @@ repl:
 
 .PHONY: deps
 deps:
-	stack install apply-refact hlint intero stylish-haskell
+	stack install apply-refact hlint intero stylish-haskell ghcid
 
 .PHONY: deps
 format:

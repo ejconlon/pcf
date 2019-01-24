@@ -2,17 +2,17 @@
 
 module Pcf.V3.Types where
 
-import           Bound         (Scope, abstract, abstract1, (>>>=))
-import           Control.Monad (ap)
+import           Bound                (Scope, abstract, abstract1, (>>>=))
+import           Control.Monad        (ap)
 import           Control.Monad.Except (MonadError (throwError))
-import           Data.Deriving (deriveEq, deriveEq1, deriveShow, deriveShow1)
-import           Data.Map      (Map)
-import qualified Data.Map      as M
-import           Data.Sequence (Seq)
-import qualified Data.Sequence as Seq
-import           Data.String   (IsString)
-import           Data.Text     (Text)
-import           GHC.Generics  (Generic)
+import           Data.Deriving        (deriveEq, deriveEq1, deriveShow, deriveShow1)
+import           Data.Map             (Map)
+import qualified Data.Map             as M
+import           Data.Sequence        (Seq)
+import qualified Data.Sequence        as Seq
+import           Data.String          (IsString)
+import           Data.Text            (Text)
+import           GHC.Generics         (Generic)
 
 newtype Name = Name { unName :: Text } deriving (Generic, Eq, Ord, Show, IsString)
 
@@ -22,16 +22,16 @@ nameFilter :: Ident -> Maybe Name
 nameFilter i =
     case i of
         ConcreteIdent n -> Just n
-        WildIdent -> Nothing
+        WildIdent       -> Nothing
 
 nameFilter2 :: (Ident, a) -> Maybe (Name, a)
-nameFilter2 (i, a) = (\n -> (n, a)) <$> nameFilter i
+nameFilter2 (i, a) = (, a) <$> nameFilter i
 
 nameFilter3 :: (z, Ident, a) -> Maybe (z, Name, a)
-nameFilter3 (z, i, a) = (\n -> (z, n, a)) <$> nameFilter i
+nameFilter3 (z, i, a) = (z, , a) <$> nameFilter i
 
 data ConDef t = ConDef
-    { conDefName :: Name
+    { conDefName  :: Name
     , conDefTypes :: Seq t
     } deriving (Generic, Eq, Show)
 
@@ -44,7 +44,7 @@ data Stmt t e =
 -- Defs
 
 data DataDefs t = DataDefs
-    { tyNameToConNames :: Map Name (Seq Name)
+    { tyNameToConNames      :: Map Name (Seq Name)
     , conNameToTyNameAndDef :: Map Name (Name, ConDef t)
     } deriving (Generic, Eq, Show)
 
@@ -167,9 +167,9 @@ instance Monad Exp0 where
 patBind0 :: Pat0 a -> (a -> Exp0 b) -> Pat0 b
 patBind0 p f =
     case p of
-        VarPat0 n b -> VarPat0 n (b >>>= f)
+        VarPat0 n b    -> VarPat0 n (b >>>= f)
         ConPat0 n ns b -> ConPat0 n ns (b >>>= f)
-        WildPat0 e -> WildPat0 (e >>= f)
+        WildPat0 e     -> WildPat0 (e >>= f)
 
 $(deriveEq ''Pat0)
 $(deriveShow ''Pat0)

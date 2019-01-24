@@ -11,7 +11,7 @@ import           Pcf.V3.Types
 
 readAtom :: Alternative m => (x -> m a) -> (SExp i x -> m a)
 readAtom p (SAtom _ t) = p t
-readAtom _ _ = empty
+readAtom _ _           = empty
 
 readPair :: Alternative m => (SExp i x -> m a) -> (SExp i x -> m b) -> (SExp i x -> m (a, b))
 readPair pa pb (SList _ ts) =
@@ -42,8 +42,8 @@ readTyX :: Alternative m => SExp i Text -> m TypeX
 readTyX (SAtom _ t) = TyVarX <$> readName t
 readTyX (SList _ ts) = case toList ts of
     [SAtom _ "Fun", SList _ us, r] -> TyFunX <$> traverse readTyX us <*> readTyX r
-    [SAtom _ "Cont", t] -> TyContX <$> readTyX t
-    _ -> empty
+    [SAtom _ "Cont", t]            -> TyContX <$> readTyX t
+    _                              -> empty
 
 readIX :: Alternative m => SExp i Text -> m (Ident, TypeX)
 readIX = readPair readIdentAtom readTyX
@@ -68,11 +68,11 @@ readExpX (SList _ ts) =
         _ -> empty
 
 readConDefX :: Alternative m => SExp i Text -> m ConDefX
-readConDefX (SAtom _ t) = (\n -> ConDef n Seq.empty) <$> readName t
+readConDefX (SAtom _ t) = (`ConDef` Seq.empty) <$> readName t
 readConDefX (SList _ ts) =
     case toList ts of
         n:us -> ConDef <$> readNameAtom n <*> (Seq.fromList <$> traverse readTyX us)
-        _ -> empty
+        _    -> empty
 
 readStmtX :: Alternative m => SExp i Text -> m StmtX
 readStmtX (SAtom _ t) = empty
@@ -80,9 +80,9 @@ readStmtX (SList _ ts) =
     case toList ts of
         [SAtom _ "decl", n, ty] -> Decl <$> readNameAtom n <*> readTyX ty
         [SAtom _ "defn", n, e]  -> Defn <$> readNameAtom n <*> readExpX e
-        (SAtom _ "data"):n:mcs  -> Data <$> readNameAtom n <*> cs where
+        SAtom _ "data":n:mcs  -> Data <$> readNameAtom n <*> cs where
             cs = case mcs of
-                [] -> pure (Seq.Empty)
+                []           -> pure Seq.Empty
                 [SList _ cs] -> traverse readConDefX cs
-                _ -> empty
+                _            -> empty
         _                       -> empty

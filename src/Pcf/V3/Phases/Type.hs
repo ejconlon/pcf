@@ -19,7 +19,7 @@ import qualified Data.Text             as T
 import           GHC.Generics          (Generic)
 import           Pcf.Core.BoundCrazy   (instantiateM)
 import           Pcf.Core.Func         (FuncT)
-import           Pcf.Core.Util         (insertAll, izipWithM_, localMod, filterMap)
+import           Pcf.Core.Util         (filterMap, insertAll, izipWithM_, localMod)
 import           Pcf.V3.Types
 
 -- Typing
@@ -155,7 +155,7 @@ inferType0 (Lam0 its b) = do
     et <- typeWithDir DirLamBody0 $ do
         let k z = case Seq.lookup z its of
                 Just (ConcreteIdent n, _) -> pure (Var0 n)
-                _ -> throwTypePathError (TypeUnboundVarError z)
+                _                         -> throwTypePathError (TypeUnboundVarError z)
         e <- instantiateM k b
         localMod (field @"teTyMap") (insertAll nts) (inferType0 e)
     let ts = snd <$> nts

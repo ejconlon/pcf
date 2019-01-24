@@ -9,8 +9,8 @@ import           Pcf.Core.Cli               (Cli, Command, ReplDirective (..), o
                                              outputPretty, outputStrLn)
 import           Pcf.Core.NiceRepl          (OptionCommands, ReplDef (..), runRepl,
                                              throwCommandError)
-import           Pcf.V3.Prelude
 import           Pcf.V3.Ops
+import           Pcf.V3.Prelude
 
 type Repl = Cli OpsData
 type ReplCommand = Command OpsData

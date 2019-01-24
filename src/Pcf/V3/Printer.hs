@@ -39,7 +39,7 @@ repStmt0 x = case x of
     Data n cs -> SList () (SAtom () "data" :<| repName n :<| end) where
         end = case cs of
             Seq.Empty -> Seq.Empty
-            _ -> SList () (repConDef0 <$> cs) :<| Seq.Empty
+            _         -> SList () (repConDef0 <$> cs) :<| Seq.Empty
 
 printStmt0 :: Stmt0 -> Text
 printStmt0 = emit . repStmt0

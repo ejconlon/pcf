@@ -2,37 +2,37 @@
 
 module Pcf.V3.Ops where
 
-import           Control.Lens               (assign, use)
-import           Control.Monad              (unless, when)
-import           Control.Monad.Except       (ExceptT, MonadError (..), runExceptT)
-import           Control.Monad.Identity     (Identity (..))
-import           Control.Monad.Reader       (runReaderT)
-import           Control.Monad.State        (MonadState (..), StateT, gets, runStateT)
-import           Control.Monad.Trans        (MonadTrans (..))
-import           Data.Foldable              (toList)
-import           Data.Generics.Product      (field)
-import           Data.Map                   (Map)
-import qualified Data.Map                   as M
-import           Data.Sequence              (Seq)
-import qualified Data.Sequence              as Seq
-import           Data.Set                   (Set)
-import qualified Data.Set                   as S
-import           Data.Text                  (Text)
-import           Data.Void                  (absurd)
-import           GHC.Generics               (Generic)
+import           Control.Lens           (assign, use)
+import           Control.Monad          (unless, when)
+import           Control.Monad.Except   (ExceptT, MonadError (..), runExceptT)
+import           Control.Monad.Identity (Identity (..))
+import           Control.Monad.Reader   (runReaderT)
+import           Control.Monad.State    (MonadState (..), StateT, gets, runStateT)
+import           Control.Monad.Trans    (MonadTrans (..))
+import           Data.Foldable          (toList)
+import           Data.Generics.Product  (field)
+import           Data.Map               (Map)
+import qualified Data.Map               as M
+import           Data.Sequence          (Seq)
+import qualified Data.Sequence          as Seq
+import           Data.Set               (Set)
+import qualified Data.Set               as S
+import           Data.Text              (Text)
+import           Data.Void              (absurd)
+import           GHC.Generics           (Generic)
 import           Pcf.Core.Func
-import           Pcf.Core.SExp              (SExp)
-import           Pcf.Core.SExp.Parser       (Anno, readSExpAnno)
-import           Pcf.Core.Util              (modifyingM)
-import           Pcf.V3.Parser              (readExpX, readStmtX)
+import           Pcf.Core.SExp          (SExp)
+import           Pcf.Core.SExp.Parser   (Anno, readSExpAnno)
+import           Pcf.Core.Util          (modifyingM)
+import           Pcf.V3.Parser          (readExpX, readStmtX)
 import           Pcf.V3.Phases.Convert
 import           Pcf.V3.Phases.Eval
 import           Pcf.V3.Phases.Type
 import           Pcf.V3.Types
 
 data OpsData = OpsData
-    { decls :: Map Name Type0
-    , defns :: Map Name (Exp0 Name)
+    { decls    :: Map Name Type0
+    , defns    :: Map Name (Exp0 Name)
     , dataDefs :: DataDefs0
     } deriving (Generic, Eq, Show)
 

@@ -19,7 +19,8 @@ import qualified Data.Text             as T
 import           GHC.Generics          (Generic)
 import           Pcf.Core.BoundCrazy   (instantiateM)
 import           Pcf.Core.Func         (FuncT)
-import           Pcf.Core.Util         (filterMap, findL, insertAll, izipWithM_, localMod, lookupR, zipWithIndex)
+import           Pcf.Core.Util         (filterMap, findL, insertAll, izipWithM_, localMod,
+                                        lookupR, zipWithIndex)
 import           Pcf.V3.Types
 
 data Kont0 =
@@ -50,9 +51,9 @@ data EvalTerm =
     deriving (Generic, Eq, Show)
 
 data EvalState = EvalState
-    { esKont     :: Kont0
-    , esStack    :: Seq (Name, EvalState)
-    , esTmMap    :: Map Name EvalTerm
+    { esKont  :: Kont0
+    , esStack :: Seq (Name, EvalState)
+    , esTmMap :: Map Name EvalTerm
     } deriving (Generic, Eq, Show)
 
 data EvalEnv t = EvalEnv
@@ -69,7 +70,7 @@ looking :: MonadError EvalError m => Seq (Int, Name, a) -> (Int -> m (Exp0 Name)
 looking inxs i =
     case findL (\(j, n, _) -> if (i == j) then Just n else Nothing) inxs of
         Nothing -> throwError (EvalUnboundVarError i)
-        Just n -> pure (Var0 n)
+        Just n  -> pure (Var0 n)
 
 validateArity :: EvalC t m => (Int -> Int -> m ()) -> Seq a -> Seq b -> m ()
 validateArity e xs as =

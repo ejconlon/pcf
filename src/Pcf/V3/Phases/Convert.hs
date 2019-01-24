@@ -61,7 +61,7 @@ convertPat (PatX p e) =
             let e' = convertExp e
             in case i of
                 ConcreteIdent n -> (\e'' -> VarPat0 n (abstract1 n e'')) <$> e'
-                WildIdent -> WildPat0 <$> e'
+                WildIdent       -> WildPat0 <$> e'
         ConPatL n is -> do
             cd <- getCon n
             let k a = Seq.findIndexR (\i -> i == ConcreteIdent a) is
@@ -88,7 +88,7 @@ convertExp ex =
             u' = convertExp u
             k = case i of
                 ConcreteIdent y -> \a -> if y == a then Just () else Nothing
-                WildIdent -> const Nothing
+                WildIdent       -> const Nothing
             u'' = abstract k <$> u'
         CaseX e ps -> Case0 <$> convertExp e <*> traverse convertPat ps
         CallX e xs ->
@@ -111,6 +111,6 @@ convertExp ex =
 convertStmt :: ConvertC t m => StmtX -> m Stmt0
 convertStmt s =
     case s of
-        Decl n t -> Decl n <$> convertTy t
-        Defn n e -> Defn n <$> convertExp e
+        Decl n t   -> Decl n <$> convertTy t
+        Defn n e   -> Defn n <$> convertExp e
         Data n cds -> Data n <$> traverse convertConDef cds

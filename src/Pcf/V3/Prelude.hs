@@ -1,8 +1,8 @@
 module Pcf.V3.Prelude where
 
-import Data.Sequence (Seq)
+import           Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
-import Pcf.V3.Types
+import           Pcf.V3.Types
 
 prelude :: Seq Stmt0
 prelude = Seq.fromList
