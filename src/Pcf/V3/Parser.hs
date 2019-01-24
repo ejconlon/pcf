@@ -2,6 +2,7 @@ module Pcf.V3.Parser where
 
 import           Control.Applicative (Alternative (..))
 import           Data.Foldable       (toList)
+import           Data.Sequence       (Seq (..))
 import qualified Data.Sequence       as Seq
 import           Data.Set            (Set)
 import qualified Data.Set            as S
@@ -23,7 +24,7 @@ readPair _ _ _ = empty
 keywords :: Set Text
 keywords = S.fromList
     [ "let", "case", "lam", "throw", "callcc", "data", "decl", "defn"
-    , "Cont", "Fun", "the", "var", "wild", "con", "new", "_"
+    , "Cont", "Fun", "the", "_"
     ]
 
 readName :: Alternative m => Text -> m Name
@@ -49,7 +50,10 @@ readIX :: Alternative m => SExp i Text -> m (Ident, TypeX)
 readIX = readPair readIdentAtom readTyX
 
 readPatL :: Alternative m => SExp i Text -> m PatL
-readPatL = undefined
+readPatL (SAtom _ i) = VarPatL <$> readIdent i
+readPatL (SList _ ts) = case ts of
+    SAtom _ n :<| is -> ConPatL <$> readName n <*> traverse readIdentAtom is
+    _                -> empty
 
 readPatX :: Alternative m => SExp i Text -> m PatX
 readPatX s = uncurry PatX <$> readPair readPatL readExpX s
