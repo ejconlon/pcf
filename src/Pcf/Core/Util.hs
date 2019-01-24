@@ -29,7 +29,7 @@ modifyingM l f = do
     assign l v'
 
 insertAll :: (Foldable t, Ord a) => t (a, b) -> Map a b -> Map a b
-insertAll nts m0 = foldl (\m (n, t) -> M.insert n t m) m0 nts
+insertAll nxs m0 = foldl (\m (n, x) -> M.insert n x m) m0 nxs
 
 filterMap :: (a -> Maybe b) -> Seq a -> Seq b
 filterMap f s =

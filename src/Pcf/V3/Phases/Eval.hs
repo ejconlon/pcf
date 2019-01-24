@@ -27,8 +27,8 @@ data Kont0 =
       KontTop0
     | KontCallFun0 (Seq (Exp0 Name)) EvalState
     | KontCallArg0 (Exp0 Name) (Seq (Int, Name, Exp0 Name)) Int Name (Seq (Int, Name, Exp0 Name)) EvalState
-    | KontCaseTarget0 (Seq (Pat0 Name)) EvalState
-    | KontCasePat0 (Exp0 Name) (Seq (Pat0 Name)) (Seq (Pat0 Name)) EvalState
+    | KontLet0 Ident (Scope () Exp0 Name) EvalState
+    | KontCase0 (Seq (Pat0 Name)) EvalState
     | KontThrowFun0 (Exp0 Name) EvalState
     | KontThrowArg0 (Exp0 Name) EvalState
     | KontConArg0 Name (Seq (Exp0 Name)) (Seq (Exp0 Name)) EvalState
@@ -68,11 +68,14 @@ type EvalT t m a = FuncT (EvalEnv t) EvalState EvalError m a
 evalProof :: Monad m => (forall n. EvalC t n => n a) -> EvalT t m a
 evalProof = id
 
-looking :: MonadError EvalError m => Seq (Int, Name, a) -> (Int -> m (Exp0 Name))
-looking inxs i =
+looking :: (MonadError EvalError m, Eq b) => (b -> EvalError) -> Seq (b, Name, a) -> (b -> m (Exp0 Name))
+looking e inxs i =
     case findL (\(j, n, _) -> if (i == j) then Just n else Nothing) inxs of
-        Nothing -> throwError (EvalUnboundVarError i)
+        Nothing -> throwError (e i)
         Just n  -> pure (Var0 n)
+
+insertAllExps :: EvalC t m => Seq (b, Name, Exp0 Name) -> m ()
+insertAllExps inxs = modifying (field @"esTmMap") (insertAll ((\(_, n, x) -> (n, ExpTerm x)) <$> inxs))
 
 validateArity :: EvalC t m => (Int -> Int -> m ()) -> Seq a -> Seq b -> m ()
 validateArity e xs as =
@@ -82,11 +85,14 @@ validateArity e xs as =
         then e xlen alen
         else pure ()
 
-call0 :: EvalC t m => Seq (Int, Name, Exp0 Name) -> Scope Int Exp0 Name -> m (Maybe (Exp0 Name))
-call0 inxs b = do
+inst0 :: (EvalC t m, Eq b) => (b -> EvalError) -> Seq (b, Name, Exp0 Name) -> Scope b Exp0 Name -> m (Maybe (Exp0 Name))
+inst0 e inxs b = do
     shiftKont0
-    modifying (field @"esTmMap") (\m -> foldl (\m' (_, n, x) -> M.insert n (ExpTerm x) m) m inxs)
-    Just <$> instantiateM (looking inxs) b
+    insertAllExps inxs
+    Just <$> instantiateM (looking e inxs) b
+
+call0 :: EvalC t m => Seq (Int, Name, Exp0 Name) -> Scope Int Exp0 Name -> m (Maybe (Exp0 Name))
+call0 = inst0 EvalUnboundVarError
 
 kontState :: Kont0 -> Maybe EvalState
 kontState k =
@@ -94,12 +100,12 @@ kontState k =
         KontTop0                 -> Nothing
         KontCallFun0 _ s         -> Just s
         KontCallArg0 _ _ _ _ _ s -> Just s
-        KontCaseTarget0 _ s      -> Just s
-        KontCasePat0 _ _ _ s     -> Just s
+        KontCase0 _ s            -> Just s
         KontThrowFun0 _ s        -> Just s
         KontThrowArg0 _ s        -> Just s
         KontConArg0 _ _ _ s      -> Just s
         KontConReady0 s          -> Just s
+        KontLet0 _ _ s           -> Just s
 
 useKontState :: MonadState EvalState m => m (Maybe EvalState)
 useKontState = kontState <$> use (field @"esKont")
@@ -116,17 +122,6 @@ addKont0 f = do
 consumeKont0 :: EvalC t m => (EvalState -> Kont0) -> m ()
 consumeKont0 f = shiftKont0 >> addKont0 f
 
-skipTopKont0 :: EvalC t m => Exp0 Name -> m (Maybe (Exp0 Name))
-skipTopKont0 e = do
-    s <- useKontState
-    case s of
-        Nothing -> pure Nothing
-        _       -> shiftKont0 $> Just e
-        -- Just s' -> do
-        --     case esKont s' of
-        --         KontTop0 -> pure Nothing
-        --         _ -> put s' $> Just e
-
 pushControl :: MonadState EvalState m => Name -> m ()
 pushControl n = modify (\s@(EvalState k c m) -> EvalState k (c |> (n, s)) (M.insert n KontTerm m))
 
@@ -136,6 +131,22 @@ popControl n = do
     case lookupR n st of
         Nothing -> throwError (EvalMissingContError n)
         Just s  -> put s
+
+selectPat :: EvalC t m => Exp0 Name -> Seq (Pat0 Name) -> m (Exp0 Name, Seq (Int, Name, Exp0 Name))
+selectPat e ps =
+    case ps of
+        p :<| ps' ->
+            case p of
+                VarPat0 n b -> pure (instantiate1 e b, Seq.empty)
+                WildPat0 e' -> pure (e', Seq.empty)
+                ConPat0 n is b ->
+                    case e of
+                        Con0 n' xs | n == n' -> do
+                            let inxs = filterMap nameFilter3 (zipWithIndex is xs)
+                            e <- instantiateM (looking (const (EvalUnboundVarError 0)) inxs) b
+                            pure (e, inxs)
+                        _ -> selectPat e ps'
+        Empty -> throwError EvalUnmatchedCaseError
 
 step0 :: EvalC t m => Exp0 Name -> m (Maybe (Exp0 Name))
 step0 e =
@@ -152,7 +163,7 @@ step0 e =
             addKont0 (KontCallFun0 xs)
             pure (Just e)
         Case0 e ps -> do
-            addKont0 (KontCaseTarget0 ps)
+            addKont0 (KontCase0 ps)
             pure (Just e)
         CallCC0 n _ b -> do
             pushControl n
@@ -160,6 +171,11 @@ step0 e =
         Throw0 c e -> do
             addKont0 (KontThrowFun0 e)
             pure (Just c)
+        Let0 i e b -> do
+            addKont0 (KontLet0 i b)
+            pure (Just e)
+        The0 e _ -> do
+            pure (Just e)
         Con0 n xs -> do
             k <- use (field @"esKont")
             case k of
@@ -197,9 +213,11 @@ kstep0 e = do
                 (j, m, w) :<| ys -> do
                     consumeKont0 (KontCallArg0 fun ready' j m ys)
                     pure (Just w)
-        KontCaseTarget0 ps _ ->
-            case e of
-                _ -> undefined
+        KontCase0 ps _ -> do
+            (e', inxs) <- selectPat e ps
+            shiftKont0
+            insertAllExps inxs
+            pure (Just e')
         KontThrowFun0 y _ -> do
             consumeKont0 (KontThrowArg0 e)
             pure (Just y)
@@ -209,6 +227,11 @@ kstep0 e = do
                     popControl n
                     pure (Just e)
                 _ -> throwError EvalNotControlError
+        KontLet0 i b _ ->
+            let inxs = case i of
+                    ConcreteIdent n -> Seq.singleton ((), n, e)
+                    WildIdent       -> Seq.empty
+            in inst0 (const (EvalUnboundVarError 0)) inxs b
         KontConArg0 n ready notReady s ->
             let ready' = ready |> e
             in case notReady of

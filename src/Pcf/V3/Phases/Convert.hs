@@ -5,6 +5,7 @@ import           Control.Lens          (view)
 import           Control.Monad         (unless)
 import           Control.Monad.Except  (MonadError (throwError))
 import           Control.Monad.Reader  (MonadReader)
+import           Control.Monad.Trans   (lift)
 import           Data.Generics.Product (field)
 import qualified Data.Map              as M
 import           Data.Maybe            (isJust)
@@ -57,11 +58,16 @@ getCon n = do
 convertPat :: ConvertC t m => PatX -> m (Pat0 Name)
 convertPat (PatX p e) =
     case p of
-        VarPatL i ->
-            let e' = convertExp e
-            in case i of
-                ConcreteIdent n -> (\e'' -> VarPat0 n (abstract1 n e'')) <$> e'
-                WildIdent       -> WildPat0 <$> e'
+        VarPatL i -> do
+            e' <- convertExp e
+            case i of
+                ConcreteIdent n -> do
+                    exists <- conExists n
+                    let e'' = if exists
+                            then ConPat0 n Seq.empty (lift e')
+                            else VarPat0 n (abstract1 n e')
+                    pure (e'')
+                WildIdent       -> pure (WildPat0 e')
         ConPatL n is -> do
             cd <- getCon n
             let k a = Seq.findIndexR (\i -> i == ConcreteIdent a) is
