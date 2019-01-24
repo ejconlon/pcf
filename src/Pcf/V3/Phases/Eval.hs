@@ -31,6 +31,8 @@ data Kont0 =
     | KontCasePat0 (Exp0 Name) (Seq (Pat0 Name)) (Seq (Pat0 Name)) EvalState
     | KontThrowFun0 (Exp0 Name) EvalState
     | KontThrowArg0 (Exp0 Name) EvalState
+    | KontConArg0 Name (Seq (Exp0 Name)) (Seq (Exp0 Name)) EvalState
+    | KontConReady0 EvalState
     deriving (Eq, Show)
 
 data EvalError =
@@ -95,14 +97,15 @@ kontState k =
         KontCaseTarget0 _ s      -> Just s
         KontCasePat0 _ _ _ s     -> Just s
         KontThrowFun0 _ s        -> Just s
-        KontThrowArg0  _ s       -> Just s
+        KontThrowArg0 _ s        -> Just s
+        KontConArg0 _ _ _ s      -> Just s
+        KontConReady0 s          -> Just s
+
+useKontState :: MonadState EvalState m => m (Maybe EvalState)
+useKontState = kontState <$> use (field @"esKont")
 
 shiftKont0 :: EvalC t m => m ()
-shiftKont0 = do
-    s0 <- get
-    case kontState (view (field @"esKont") s0) of
-        Nothing -> throwError EvalTopError
-        Just s1 -> put s1
+shiftKont0 = useKontState >>= maybe (throwError EvalTopError) put
 
 addKont0 :: MonadState EvalState m => (EvalState -> Kont0) -> m ()
 addKont0 f = do
@@ -112,6 +115,17 @@ addKont0 f = do
 
 consumeKont0 :: EvalC t m => (EvalState -> Kont0) -> m ()
 consumeKont0 f = shiftKont0 >> addKont0 f
+
+skipTopKont0 :: EvalC t m => Exp0 Name -> m (Maybe (Exp0 Name))
+skipTopKont0 e = do
+    s <- useKontState
+    case s of
+        Nothing -> pure Nothing
+        _       -> shiftKont0 $> Just e
+        -- Just s' -> do
+        --     case esKont s' of
+        --         KontTop0 -> pure Nothing
+        --         _ -> put s' $> Just e
 
 pushControl :: MonadState EvalState m => Name -> m ()
 pushControl n = modify (\s@(EvalState k c m) -> EvalState k (c |> (n, s)) (M.insert n KontTerm m))
@@ -147,12 +161,14 @@ step0 e =
             addKont0 (KontThrowFun0 e)
             pure (Just c)
         Con0 n xs -> do
-            dds <- view (field @"eeDataDefs")
-            case snd <$> M.lookup n (conNameToTyNameAndDef dds) of
-                Nothing -> throwError (EvalUnknownConError n)
-                Just (ConDef _ ts) -> do
-                    validateArity (\i j -> throwError (EvalConArityError n i j)) xs ts
-                    undefined
+            k <- use (field @"esKont")
+            case k of
+                KontConReady0 _ -> shiftKont0 >> kstep0 e
+                _ -> case xs of
+                    y :<| ys -> do
+                        addKont0 (KontConArg0 n Seq.empty ys)
+                        pure (Just y)
+                    Empty -> kstep0 e
         _ -> kstep0 e
 
 kstep0 :: EvalC t m => Exp0 Name -> m (Maybe (Exp0 Name))
@@ -193,19 +209,38 @@ kstep0 e = do
                     popControl n
                     pure (Just e)
                 _ -> throwError EvalNotControlError
+        KontConArg0 n ready notReady s ->
+            let ready' = ready |> e
+            in case notReady of
+                y :<| ys -> do
+                    consumeKont0 (KontConArg0 n ready' ys)
+                    pure (Just y)
+                Empty -> do
+                    consumeKont0 KontConReady0
+                    pure (Just (Con0 n ready'))
 
-bigStep0 :: EvalC t m => Exp0 Name -> m (Seq (Exp0 Name, EvalState), Maybe EvalError)
-bigStep0 e =
+traceBigStep0 :: EvalC t m => Exp0 Name -> m (Seq (Exp0 Name, EvalState), Either EvalError (Exp0 Name))
+traceBigStep0 e =
     let go w trail = do
             x <- catchError (Right <$> step0 w) (pure . Left)
             case x of
-                Left e -> pure (trail, Just e)
+                Left e -> pure (trail, Left e)
                 Right a ->
                     case a of
-                        Nothing -> pure (trail, Nothing)
+                        Nothing -> pure (trail, Right w)
                         Just y  -> do
                             n <- get
                             go y (trail |> (y, n))
     in do
         n <- get
         go e (Seq.singleton (e, n))
+
+bigStep0 :: EvalC t m => Exp0 Name -> m (Either EvalError (Exp0 Name))
+bigStep0 w = do
+    x <- catchError (Right <$> step0 w) (pure . Left)
+    case x of
+        Left e -> pure (Left e)
+        Right a ->
+            case a of
+                Nothing -> pure (Right w)
+                Just w' -> bigStep0 w'

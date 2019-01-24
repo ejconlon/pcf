@@ -149,7 +149,13 @@ typeCheckOps e = do
     dataDefs <- use (field @"dataDefs")
     liftTypeT dataDefs decls (inferType0 e)
 
-bigStepOps :: Monad m => Exp0 Name -> OpsT m (Seq (Exp0 Name, EvalState), Maybe EvalError)
+traceBigStepOps :: Monad m => Exp0 Name -> OpsT m (Seq (Exp0 Name, EvalState), Either EvalError (Exp0 Name))
+traceBigStepOps e = do
+    defns <- use (field @"defns")
+    dataDefs <- use (field @"dataDefs")
+    liftEvalT dataDefs defns (traceBigStep0 e)
+
+bigStepOps :: Monad m => Exp0 Name -> OpsT m (Either EvalError (Exp0 Name))
 bigStepOps e = do
     defns <- use (field @"defns")
     dataDefs <- use (field @"dataDefs")

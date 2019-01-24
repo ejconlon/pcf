@@ -64,7 +64,7 @@ evalCommand input = do
     ty <- quickOpsT (typeCheckOps e0)
     outputStrLn "Type: "
     outputPretty ty
-    v <- quickOpsT (bigStepOps e0)
+    v <- quickOpsT (traceBigStepOps e0)
     outputStrLn "Value: "
     outputPretty v
     pure ReplContinue

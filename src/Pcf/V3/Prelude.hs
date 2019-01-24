@@ -9,5 +9,5 @@ prelude = Seq.fromList
     [ Data "Void" Seq.Empty
     , Data "Unit" (Seq.singleton (ConDef "Unit" Seq.Empty))
     , Data "Bool" (Seq.fromList [ConDef "True" Seq.Empty, ConDef "False" Seq.Empty])
-    , Data "Nat" (Seq.fromList [ConDef "Zero" Seq.Empty, ConDef "Succ" (Seq.singleton (TyCon0 "Nat"))])
+    , Data "Nat" (Seq.fromList [ConDef "Zero" Seq.Empty, ConDef "Suc" (Seq.singleton (TyCon0 "Nat"))])
     ]
