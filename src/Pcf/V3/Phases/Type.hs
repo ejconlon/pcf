@@ -19,7 +19,7 @@ import qualified Data.Text             as T
 import           GHC.Generics          (Generic)
 import           Pcf.Core.BoundCrazy   (instantiateM)
 import           Pcf.Core.Func         (FuncT)
-import           Pcf.Core.Util         (insertAll, izipWithM_, localMod)
+import           Pcf.Core.Util         (insertAll, izipWithM_, localMod, filterMap)
 import           Pcf.V3.Types
 
 -- Typing
@@ -31,7 +31,7 @@ data TypeError =
     | TypeUnboundVarError Int
     | TypeLamArityError Int Int
     | TypeConArityError Name Int Int
-    | TypeNotFunError
+    | TypeNotLamError
     | TypeNotDataError
     | TypeNotContError
     | TypeEmptyCaseError
@@ -82,11 +82,7 @@ inferPatType0 inTy p =
                                     Just (ConcreteIdent n) -> pure (Var0 n)
                                     _ -> throwTypePathError (TypeUnboundVarError z)
                             e <- instantiateM k b
-                            let nts = do
-                                    (i, t) <- Seq.zip is (conDefTypes cd)
-                                    case i of
-                                        ConcreteIdent n -> pure (n, t)
-                                        _ -> Seq.empty
+                            let nts = filterMap nameFilter2 (Seq.zip is (conDefTypes cd))
                             localMod (field @"teTyMap") (insertAll nts) (inferType0 e)
                         _ -> throwTypePathError TypeNotDataError
         WildPat0 e -> inferType0 e
@@ -96,12 +92,12 @@ checkType0 t e = do
     u <- inferType0 e
     unless (u == t) (throwTypePathError (TypeCheckError u t))
 
-inferTyArr0 :: TypeC m => Exp0 Name -> m (Seq Type0, Type0)
-inferTyArr0 e = do
+inferTyFun0 :: TypeC m => Exp0 Name -> m (Seq Type0, Type0)
+inferTyFun0 e = do
     et <- inferType0 e
     case et of
         TyFun0 ats rty -> pure (ats, rty)
-        _              -> throwTypePathError TypeNotFunError
+        _              -> throwTypePathError TypeNotLamError
 
 inferTyCont0 :: TypeC m => Exp0 Name -> m Type0
 inferTyCont0 e = do
@@ -146,7 +142,7 @@ inferType0 (Case0 e ps) = do
             Seq.traverseWithIndex (\i q -> typeWithDir (DirCasePat0 (i+1)) (checkPatType0 t pt q)) ps
             pure pt
 inferType0 (Call0 e xs) = do
-    (ats, rty) <- typeWithDir DirCallFun0 (inferTyArr0 e)
+    (ats, rty) <- typeWithDir DirCallFun0 (inferTyFun0 e)
     let xlen = Seq.length xs
         alen = Seq.length ats
     if xlen /= alen
@@ -155,11 +151,7 @@ inferType0 (Call0 e xs) = do
             izipWithM_ (\i at x -> typeWithDir (DirCallArg0 i) (checkType0 at x)) ats xs
             pure rty
 inferType0 (Lam0 its b) = do
-    let nts = do
-            (i, t) <- its
-            case i of
-                ConcreteIdent n -> pure (n, t)
-                _ -> Seq.empty
+    let nts = filterMap nameFilter2 its
     et <- typeWithDir DirLamBody0 $ do
         let k z = case Seq.lookup z its of
                 Just (ConcreteIdent n, _) -> pure (Var0 n)

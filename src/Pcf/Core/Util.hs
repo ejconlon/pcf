@@ -9,6 +9,7 @@ import Control.Monad.State (MonadState)
 import           Data.Map (Map)
 import qualified Data.Map as M
 import Data.Sequence (Seq (..))
+import qualified Data.Sequence as Seq
 
 trabind :: (Traversable f, Monad f, Applicative m) => f a -> (a -> m (f b)) -> m (f b)
 trabind fa k = join <$> traverse k fa
@@ -29,3 +30,33 @@ modifyingM l f = do
 
 insertAll :: (Foldable t, Ord a) => t (a, b) -> Map a b -> Map a b
 insertAll nts m0 = foldl (\m (n, t) -> M.insert n t m) m0 nts
+
+filterMap :: (a -> Maybe b) -> Seq a -> Seq b
+filterMap f s =
+    case s of
+        x :<| xs ->
+            let xs' = filterMap f xs
+            in case f x of
+                Nothing -> xs'
+                Just x' -> x' :<| xs'
+        Empty -> Empty
+
+zipWithIndex :: Seq a -> Seq b -> Seq (Int, a, b)
+zipWithIndex = go 0 where
+    go i (a :<| as) (b :<| bs) = (i, a, b) :<| go (i+1) as bs
+    go _ _ _ = Empty
+
+findL :: (a -> Maybe b) -> Seq a -> Maybe b
+findL f s =
+    case s of
+        x :<| xs ->
+            let y = f x
+            in case f x of
+                Nothing -> findL f xs
+                _ -> y
+
+lookupR :: Eq a => a -> Seq (a, b) -> Maybe b
+lookupR a abs = do
+    i <- Seq.findIndexR (\(x, _) -> x == a) abs
+    ab <- Seq.lookup i abs
+    pure (snd ab)

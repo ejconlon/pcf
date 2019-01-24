@@ -44,7 +44,7 @@ execCommand input = do
     st0 <- quickOpsT (handleConvertStmt stx)
     outputStrLn "Converted Stmt0:"
     outputPretty st0
-    -- quickOpsT (processStmt st)
+    quickOpsT (processStmt st0)
     pure ReplContinue
 
 evalCommand :: ReplCommand
@@ -64,9 +64,9 @@ evalCommand input = do
     ty <- quickOpsT (typeCheckOps e0)
     outputStrLn "Type: "
     outputPretty ty
-    -- v <- quickOpsT (bigStepOps e)
-    -- outputStrLn "Value: "
-    -- outputPretty v
+    v <- quickOpsT (bigStepOps e0)
+    outputStrLn "Value: "
+    outputPretty v
     pure ReplContinue
 
 additionalOptions :: ReplOptionCommands

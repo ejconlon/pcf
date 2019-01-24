@@ -23,10 +23,8 @@ data ConvertError =
     | ConvertUnknownConError Name
     deriving (Generic, Show, Eq)
 
-type FullConvertError = ConvertError
-
-type ConvertC t m = (MonadReader (ConvertEnv t) m, MonadError FullConvertError m)
-type ConvertT t m a = FuncT (ConvertEnv t) () FullConvertError m a
+type ConvertC t m = (MonadReader (ConvertEnv t) m, MonadError ConvertError m)
+type ConvertT t m a = FuncT (ConvertEnv t) () ConvertError m a
 
 convertProof :: Monad m => (forall n. ConvertC t n => n a) -> ConvertT t m a
 convertProof = id

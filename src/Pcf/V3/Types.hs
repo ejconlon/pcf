@@ -18,6 +18,18 @@ newtype Name = Name { unName :: Text } deriving (Generic, Eq, Ord, Show, IsStrin
 
 data Ident = ConcreteIdent Name | WildIdent deriving (Generic, Eq, Show)
 
+nameFilter :: Ident -> Maybe Name
+nameFilter i =
+    case i of
+        ConcreteIdent n -> Just n
+        WildIdent -> Nothing
+
+nameFilter2 :: (Ident, a) -> Maybe (Name, a)
+nameFilter2 (i, a) = (\n -> (n, a)) <$> nameFilter i
+
+nameFilter3 :: (z, Ident, a) -> Maybe (z, Name, a)
+nameFilter3 (z, i, a) = (\n -> (z, n, a)) <$> nameFilter i
+
 data ConDef t = ConDef
     { conDefName :: Name
     , conDefTypes :: Seq t
@@ -46,16 +58,6 @@ addDataDef n cds (DataDefs x y) = DataDefs x' y' where
 
 emptyDataDefs :: DataDefs t
 emptyDataDefs = DataDefs M.empty M.empty
-
-isSingletonConstructor :: Name -> DataDefs t -> Bool
-isSingletonConstructor n dds =
-    case M.lookup n (conNameToTyNameAndDef dds) of
-        Just (_, cd) -> Seq.null (conDefTypes cd)
-        Nothing -> False
-
--- TODO this will change when types get arguments
-isSaturatedType :: Name -> DataDefs t -> Bool
-isSaturatedType = declaredDataType
 
 -- PathError
 

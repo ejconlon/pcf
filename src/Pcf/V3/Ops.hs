@@ -26,6 +26,7 @@ import           Pcf.Core.SExp.Parser       (Anno, readSExpAnno)
 import           Pcf.Core.Util              (modifyingM)
 import           Pcf.V3.Parser              (readExpX, readStmtX)
 import           Pcf.V3.Phases.Convert
+import           Pcf.V3.Phases.Eval
 import           Pcf.V3.Phases.Type
 import           Pcf.V3.Types
 
@@ -48,9 +49,9 @@ data OpsExc =
     | CannotParseExp (SExp Anno Text)
     | CannotParseStmt (SExp Anno Text)
     | CannotParseSExp Text
-    | WrapConvertError FullConvertError
+    | WrapConvertError ConvertError
     | WrapTypeError FullTypeError
-    -- | WrapEvalError EvalError
+    | WrapEvalError EvalError
     deriving (Generic, Eq, Show)
 
 type OpsC m = (MonadState OpsData m, MonadError OpsExc m)
@@ -85,11 +86,11 @@ handleConvertT act = do
     dds <- use (field @"dataDefs")
     liftConvertT dds act
 
-liftTypeT :: Monad m => Map Name Type0 -> DataDefs0 -> TypeT m b -> OpsT m b
-liftTypeT tyMap dds = (fst <$>) . liftFuncT (TypeEnv tyMap dds Seq.empty) () WrapTypeError
+liftTypeT :: Monad m => DataDefs0 -> Map Name Type0 -> TypeT m b -> OpsT m b
+liftTypeT dds tyMap = (fst <$>) . liftFuncT (TypeEnv tyMap dds Seq.empty) () WrapTypeError
 
--- liftEvalT :: Monad m => Map Text (Exp0 Text) -> EvalT m b -> OpsT m b
--- liftEvalT expMap = (fst <$>) . liftFuncT () (EvalState KontTop0 Seq.empty (ExpTerm <$> expMap)) WrapEvalError
+liftEvalT :: Monad m => DataDefs t -> Map Name (Exp0 Name) -> EvalT t m b -> OpsT m b
+liftEvalT dds expMap = (fst <$>) . liftFuncT (EvalEnv dds) (EvalState KontTop0 Seq.empty (ExpTerm <$> expMap)) WrapEvalError
 
 -- liftConvT :: Monad m => ConvT n n m b -> OpsT m b
 -- liftConvT = (fst <$>) . liftFuncT (ConvEnv pure) () WrapConvError
@@ -122,7 +123,7 @@ define name e = do
         Just expectedTy -> modifyingM (field @"defns") $ \defns -> do
             when (M.member name defns) (throwError (AlreadyDefined name))
             dds <- use (field @"dataDefs")
-            liftTypeT (M.delete name decls) dds (checkType0 expectedTy e)
+            liftTypeT dds (M.delete name decls) (checkType0 expectedTy e)
             pure (M.insert name e defns)
 
 dataDef :: Monad m => Name -> Seq ConDef0 -> OpsT m ()
@@ -146,12 +147,13 @@ typeCheckOps :: Monad m => Exp0 Name -> OpsT m Type0
 typeCheckOps e = do
     decls <- use (field @"decls")
     dataDefs <- use (field @"dataDefs")
-    liftTypeT decls dataDefs (inferType0 e)
+    liftTypeT dataDefs decls (inferType0 e)
 
--- bigStepOps :: Monad m => Exp0 Text -> OpsT m (Seq (Exp0 Name, EvalState), Maybe EvalError)
--- bigStepOps e = do
---     defns <- use (field @"defns")
---     liftEvalT defns (bigStep0 e)
+bigStepOps :: Monad m => Exp0 Name -> OpsT m (Seq (Exp0 Name, EvalState), Maybe EvalError)
+bigStepOps e = do
+    defns <- use (field @"defns")
+    dataDefs <- use (field @"dataDefs")
+    liftEvalT dataDefs defns (bigStep0 e)
 
 freeVarsOps :: (Monad m, Ord a) => Exp0 a -> OpsT m (Set a)
 freeVarsOps = pure . S.fromList . toList
