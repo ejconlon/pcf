@@ -3,7 +3,7 @@
 module Pcf.Core.Util where
 
 import           Control.Lens         (Lens', assign, over, use)
-import           Control.Monad        (join)
+import           Control.Monad        (join, void)
 import           Control.Monad.Reader (MonadReader, local)
 import           Control.Monad.State  (MonadState)
 import           Data.Map             (Map)
@@ -22,11 +22,15 @@ izipWithM_ f = go 0 where
 localMod :: MonadReader x m => Lens' x y -> (y -> y) -> m z -> m z
 localMod lens mod = local (over lens mod)
 
-modifyingM :: MonadState x m => Lens' x y -> (y -> m y) -> m ()
+modifyingM :: MonadState x m => Lens' x y -> (y -> m y) -> m y
 modifyingM l f = do
     v <- use l
     v' <- f v
     assign l v'
+    pure v
+
+modifyingM_ :: MonadState x m => Lens' x y -> (y -> m y) -> m ()
+modifyingM_ l f = void (modifyingM l f)
 
 insertAll :: (Foldable t, Ord a) => t (a, b) -> Map a b -> Map a b
 insertAll nxs m0 = foldl (\m (n, x) -> M.insert n x m) m0 nxs

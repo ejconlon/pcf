@@ -23,11 +23,12 @@ import           GHC.Generics           (Generic)
 import           Pcf.Core.Func
 import           Pcf.Core.SExp          (SExp)
 import           Pcf.Core.SExp.Parser   (Anno, readSExpAnno)
-import           Pcf.Core.Util          (modifyingM)
+import           Pcf.Core.Util          (modifyingM_)
 import           Pcf.V3.Parser          (readExpX, readStmtX)
 import           Pcf.V3.Phases.Convert
 import           Pcf.V3.Phases.Eval
 import           Pcf.V3.Phases.Type
+import           Pcf.V3.Names (Name)
 import           Pcf.V3.Types
 
 data OpsData = OpsData
@@ -79,7 +80,7 @@ liftFuncT env st wrap act = do
     either (throwError . wrap) pure mr
 
 liftConvertT :: Monad m => DataDefs t -> ConvertT t m b -> OpsT m b
-liftConvertT dds = (fst <$>) . liftFuncT (ConvertEnv dds) () WrapConvertError
+liftConvertT dds = (fst <$>) . liftFuncT (ConvertEnv dds) () WrapConvertError . unConvertT
 
 handleConvertT :: Monad m => ConvertT Type0 m b -> OpsT m b
 handleConvertT act = do
@@ -87,10 +88,10 @@ handleConvertT act = do
     liftConvertT dds act
 
 liftTypeT :: Monad m => DataDefs0 -> Map Name Type0 -> TypeT m b -> OpsT m b
-liftTypeT dds tyMap = (fst <$>) . liftFuncT (TypeEnv tyMap dds Seq.empty) () WrapTypeError
+liftTypeT dds tyMap = (fst <$>) . liftFuncT (TypeEnv tyMap dds Seq.empty) () WrapTypeError . unTypeT
 
 liftEvalT :: Monad m => DataDefs t -> Map Name (Exp0 Name) -> EvalT t m b -> OpsT m b
-liftEvalT dds expMap = (fst <$>) . liftFuncT (EvalEnv dds) (EvalState KontTop0 Seq.empty (ExpTerm <$> expMap)) WrapEvalError
+liftEvalT dds expMap = (fst <$>) . liftFuncT (EvalEnv dds) (EvalState KontTop0 Seq.empty (ExpTerm <$> expMap)) WrapEvalError . unEvalT
 
 -- liftConvT :: Monad m => ConvT n n m b -> OpsT m b
 -- liftConvT = (fst <$>) . liftFuncT (ConvEnv pure) () WrapConvError
@@ -111,7 +112,7 @@ parseStmt :: Monad m => SExp Anno Text -> OpsT m StmtX
 parseStmt se = maybe (throwError (CannotParseStmt se)) pure (readStmtX se)
 
 declare :: Monad m => Name -> Type0 -> OpsT m ()
-declare name ty = modifyingM (field @"decls") $ \decls -> do
+declare name ty = modifyingM_ (field @"decls") $ \decls -> do
     when (M.member name decls) (throwError (AlreadyDeclared name))
     pure (M.insert name ty decls)
 
@@ -120,14 +121,14 @@ define name e = do
     decls <- use (field @"decls")
     case M.lookup name decls of
         Nothing -> throwError (NotDeclared name)
-        Just expectedTy -> modifyingM (field @"defns") $ \defns -> do
+        Just expectedTy -> modifyingM_ (field @"defns") $ \defns -> do
             when (M.member name defns) (throwError (AlreadyDefined name))
             dds <- use (field @"dataDefs")
             liftTypeT dds (M.delete name decls) (checkType0 expectedTy e)
             pure (M.insert name e defns)
 
 dataDef :: Monad m => Name -> Seq ConDef0 -> OpsT m ()
-dataDef name cds = modifyingM (field @"dataDefs") $ \dds -> do
+dataDef name cds = modifyingM_ (field @"dataDefs") $ \dds -> do
     when (declaredDataType name dds) (throwError (DataAlreadyDeclared name))
     -- TODO iterate through cons and check for previous decls
     pure (addDataDef name cds dds)

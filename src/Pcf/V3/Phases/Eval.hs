@@ -17,17 +17,17 @@ import qualified Data.Sequence         as Seq
 import           Data.Text             (Text)
 import qualified Data.Text             as T
 import           GHC.Generics          (Generic)
-import           Pcf.Core.BoundCrazy   (instantiateM)
+import           Pcf.Core.BoundCrazy
 import           Pcf.Core.Func         (FuncT)
-import           Pcf.Core.Util         (filterMap, findL, insertAll, izipWithM_, localMod,
-                                        lookupR, zipWithIndex)
+import           Pcf.Core.Util
+import           Pcf.V3.Names
 import           Pcf.V3.Types
 
 data Kont0 =
       KontTop0
     | KontCallFun0 (Seq (Exp0 Name)) EvalState
     | KontCallArg0 (Exp0 Name) (Seq (Int, Name, Exp0 Name)) Int Name (Seq (Int, Name, Exp0 Name)) EvalState
-    | KontLet0 Ident (Scope () Exp0 Name) EvalState
+    | KontLet0 Ident (Scope Int Exp0 Name) EvalState
     | KontCase0 (Seq (Pat0 Name)) EvalState
     | KontThrowFun0 (Exp0 Name) EvalState
     | KontThrowArg0 (Exp0 Name) EvalState
@@ -54,7 +54,7 @@ data EvalTerm =
 
 data EvalState = EvalState
     { esKont  :: Kont0
-    , esStack :: Seq (Name, EvalState)
+    , esStack :: Seq (Ident, EvalState)
     , esTmMap :: Map Name EvalTerm
     } deriving (Generic, Eq, Show)
 
@@ -62,20 +62,18 @@ data EvalEnv t = EvalEnv
     { eeDataDefs :: DataDefs t
     } deriving (Generic, Eq, Show)
 
-type EvalC t m = (MonadReader (EvalEnv t) m, MonadState EvalState m, MonadError EvalError m)
-type EvalT t m a = FuncT (EvalEnv t) EvalState EvalError m a
+type EvalC t m = (Instantiable m, MonadReader (EvalEnv t) m, MonadState EvalState m, MonadError EvalError m)
+newtype EvalT t m a = EvalT { unEvalT :: FuncT (EvalEnv t) EvalState EvalError m a }
+    deriving (Functor, Applicative, Monad, MonadReader (EvalEnv t), MonadState EvalState, MonadError EvalError)
+
+instance Monad m => Instantiable (EvalT t m) where
+    instantiating = instantiateE' EvalUnboundVarError
 
 evalProof :: Monad m => (forall n. EvalC t n => n a) -> EvalT t m a
 evalProof = id
 
-looking :: (MonadError EvalError m, Eq b) => (b -> EvalError) -> Seq (b, Name, a) -> (b -> m (Exp0 Name))
-looking e inxs i =
-    case findL (\(j, n, _) -> if (i == j) then Just n else Nothing) inxs of
-        Nothing -> throwError (e i)
-        Just n  -> pure (Var0 n)
-
-insertAllExps :: EvalC t m => Seq (b, Name, Exp0 Name) -> m ()
-insertAllExps inxs = modifying (field @"esTmMap") (insertAll ((\(_, n, x) -> (n, ExpTerm x)) <$> inxs))
+insertAllExps :: EvalC t m => Seq (SubV Name (Exp0 Name)) -> m ()
+insertAllExps svs = modifying (field @"esTmMap") (insertAll ((\(n, x) -> (n, ExpTerm x)) <$> svs))
 
 validateArity :: EvalC t m => (Int -> Int -> m ()) -> Seq a -> Seq b -> m ()
 validateArity e xs as =
@@ -85,14 +83,11 @@ validateArity e xs as =
         then e xlen alen
         else pure ()
 
-inst0 :: (EvalC t m, Eq b) => (b -> EvalError) -> Seq (b, Name, Exp0 Name) -> Scope b Exp0 Name -> m (Maybe (Exp0 Name))
-inst0 e inxs b = do
+call0 :: EvalC t m => Seq (Sub Int Name (Exp0 Name)) -> Scope Int Exp0 Name -> m (Maybe (Exp0 Name))
+call0 subs b = do
     shiftKont0
-    insertAllExps inxs
-    Just <$> instantiateM (looking e inxs) b
-
-call0 :: EvalC t m => Seq (Int, Name, Exp0 Name) -> Scope Int Exp0 Name -> m (Maybe (Exp0 Name))
-call0 = inst0 EvalUnboundVarError
+    insertAllExps (subV <$> subs)
+    Just <$> instantiating (subK <$> subs) b
 
 kontState :: Kont0 -> Maybe EvalState
 kontState k =
@@ -122,29 +117,33 @@ addKont0 f = do
 consumeKont0 :: EvalC t m => (EvalState -> Kont0) -> m ()
 consumeKont0 f = shiftKont0 >> addKont0 f
 
-pushControl :: MonadState EvalState m => Name -> m ()
-pushControl n = modify (\s@(EvalState k c m) -> EvalState k (c |> (n, s)) (M.insert n KontTerm m))
+pushControl :: MonadState EvalState m => Ident -> m ()
+pushControl i =
+    let nts = selectSubV (i, KontTerm) :: Seq (SubV Name EvalTerm)
+    in modify (\s@(EvalState k c m) -> EvalState k (c |> (i, s)) (insertAll nts m))
 
 popControl :: EvalC t m => Name -> m ()
 popControl n = do
     st <- use (field @"esStack")
-    case lookupR n st of
+    case lookupR (ConcreteIdent n) st of
         Nothing -> throwError (EvalMissingContError n)
         Just s  -> put s
 
-selectPat :: EvalC t m => Exp0 Name -> Seq (Pat0 Name) -> m (Exp0 Name, Seq (Int, Name, Exp0 Name))
+selectPat :: EvalC t m => Exp0 Name -> Seq (Pat0 Name) -> m (Exp0 Name, Seq (SubV Name (Exp0 Name)))
 selectPat e ps =
     case ps of
         p :<| ps' ->
             case p of
-                VarPat0 n b -> pure (instantiate1 e b, Seq.empty)
-                WildPat0 e' -> pure (e', Seq.empty)
+                VarPat0 i b -> do
+                    let sks = projectSubK i
+                    e <- instantiating sks b
+                    pure (e, (\(_, n) -> (n, e)) <$> sks)
                 ConPat0 n is b ->
                     case e of
                         Con0 n' xs | n == n' -> do
-                            let inxs = filterMap nameFilter3 (zipWithIndex is xs)
-                            e <- instantiateM (looking (const (EvalUnboundVarError 0)) inxs) b
-                            pure (e, inxs)
+                            let subs = selectSubs (zipWithIndex is xs)
+                            e <- instantiating (subK <$> subs) b
+                            pure (e, subV <$> subs)
                         _ -> selectPat e ps'
         Empty -> throwError EvalUnmatchedCaseError
 
@@ -165,9 +164,11 @@ step0 e =
         Case0 e ps -> do
             addKont0 (KontCase0 ps)
             pure (Just e)
-        CallCC0 n _ b -> do
-            pushControl n
-            pure (Just (instantiate1 (Var0 n) b))
+        CallCC0 i _ b -> do
+            pushControl i
+            let sks = projectSubK i
+            e <- instantiating sks b
+            pure (Just e)
         Throw0 c e -> do
             addKont0 (KontThrowFun0 e)
             pure (Just c)
@@ -196,8 +197,8 @@ kstep0 e = do
             case e of
                 Lam0 its b -> do
                     validateArity (\i j -> throwError (EvalLamArityError i j)) xs its
-                    let inxs = filterMap nameFilter3 (zipWithIndex (fst <$> its) xs)
-                    case inxs of
+                    let subs = selectSubs (zipWithIndex (fst <$> its) xs)
+                    case subs of
                         Seq.Empty -> call0 Seq.empty b
                         (i, n, w) :<| ys -> do
                             consumeKont0 (KontCallArg0 e Seq.empty i n ys)
@@ -214,9 +215,9 @@ kstep0 e = do
                     consumeKont0 (KontCallArg0 fun ready' j m ys)
                     pure (Just w)
         KontCase0 ps _ -> do
-            (e', inxs) <- selectPat e ps
+            (e', svs) <- selectPat e ps
             shiftKont0
-            insertAllExps inxs
+            insertAllExps svs
             pure (Just e')
         KontThrowFun0 y _ -> do
             consumeKont0 (KontThrowArg0 e)
@@ -227,11 +228,9 @@ kstep0 e = do
                     popControl n
                     pure (Just e)
                 _ -> throwError EvalNotControlError
-        KontLet0 i b _ ->
-            let inxs = case i of
-                    ConcreteIdent n -> Seq.singleton ((), n, e)
-                    WildIdent       -> Seq.empty
-            in inst0 (const (EvalUnboundVarError 0)) inxs b
+        KontLet0 i b _ -> do
+            let subs = projectSub (i, e)
+            call0 subs b
         KontConArg0 n ready notReady s ->
             let ready' = ready |> e
             in case notReady of

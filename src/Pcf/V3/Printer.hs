@@ -7,6 +7,7 @@ import           Data.Text             (Text)
 import qualified Data.Text             as T
 import           Pcf.Core.SExp         (SExp (..))
 import           Pcf.Core.SExp.Printer (emit)
+import           Pcf.V3.Names
 import           Pcf.V3.Types
 
 repName :: Name -> SExp () Text

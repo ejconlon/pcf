@@ -8,6 +8,7 @@ import           Data.Set            (Set)
 import qualified Data.Set            as S
 import           Data.Text           (Text)
 import           Pcf.Core.SExp       (SExp (..))
+import           Pcf.V3.Names
 import           Pcf.V3.Types
 
 readAtom :: Alternative m => (x -> m a) -> (SExp i x -> m a)
@@ -67,7 +68,7 @@ readExpX (SList _ ts) =
         [SAtom _ "case", e, SList _ ps] -> CaseX <$> readExpX e <*> traverse readPatX ps
         [SAtom _ "throw", c, e] -> ThrowX <$> readExpX c <*> readExpX e
         [SAtom _ "lam", SList _ nts, e] -> LamX <$> traverse readIX nts <*> readExpX e
-        [SAtom _ "callcc", n, t, e] -> CallCCX <$> readNameAtom n <*> readTyX t <*> readExpX e
+        [SAtom _ "callcc", i, t, e] -> CallCCX <$> readIdentAtom i <*> readTyX t <*> readExpX e
         l:rs -> CallX <$> readExpX l <*> (Seq.fromList <$> traverse readExpX rs)
         _ -> empty
 

@@ -1,6 +1,6 @@
 module Pcf.V3.Phases.Convert where
 
-import           Bound                 (abstract, abstract1)
+import           Bound                 (Scope)
 import           Control.Lens          (view)
 import           Control.Monad         (unless, when)
 import           Control.Monad.Except  (MonadError (throwError))
@@ -12,8 +12,10 @@ import           Data.Maybe            (isJust)
 import           Data.Sequence         (Seq)
 import qualified Data.Sequence         as Seq
 import           GHC.Generics          (Generic)
+import           Pcf.Core.BoundCrazy   (abstracting, abstracting1)
 import           Pcf.Core.Func
 import           Pcf.Core.Util         (ensure)
+import           Pcf.V3.Names
 import           Pcf.V3.Types
 
 data ConvertEnv t = ConvertEnv
@@ -27,7 +29,8 @@ data ConvertError =
     deriving (Generic, Show, Eq)
 
 type ConvertC t m = (MonadReader (ConvertEnv t) m, MonadError ConvertError m)
-type ConvertT t m a = FuncT (ConvertEnv t) () ConvertError m a
+newtype ConvertT t m a = ConvertT { unConvertT :: FuncT (ConvertEnv t) () ConvertError m a }
+    deriving (Functor, Applicative, Monad, MonadReader (ConvertEnv t), MonadError ConvertError)
 
 convertProof :: Monad m => (forall n. ConvertC t n => n a) -> ConvertT t m a
 convertProof = id
@@ -71,15 +74,15 @@ convertPat (PatX p e) =
                     exists <- conExists n
                     let e'' = if exists
                             then ConPat0 n Seq.empty (lift e')
-                            else VarPat0 n (abstract1 n e')
-                    pure (e'')
-                WildIdent       -> pure (WildPat0 e')
+                            else VarPat0 (ConcreteIdent n) (abstracting1 n e')
+                    pure e''
+                WildIdent       -> pure (VarPat0 WildIdent (lift e'))
         ConPatL n is -> do
             cd <- getCon n
             traverse validateVarIdent is
-            let k a = Seq.findIndexR (\i -> i == ConcreteIdent a) is
             e' <- convertExp e
-            let e'' = abstract k e'
+            let sks = projectSubKs is
+                e'' = abstracting sks e'
             pure (ConPat0 n is e'')
 
 convertConDef :: ConvertC t m => ConDefX -> m ConDef0
@@ -108,12 +111,13 @@ convertExp ex =
         VarX n -> do
             exists <- conExists n
             if exists then convertCon n Seq.empty else pure (Var0 n)
-        LetX i e u -> Let0 <$> ensure validateVarIdent i <*> convertExp e <*> u'' where
-            u' = convertExp u
-            k = case i of
-                ConcreteIdent y -> \a -> if y == a then Just () else Nothing
-                WildIdent       -> const Nothing
-            u'' = abstract k <$> u'
+        LetX i e u -> do
+            validateVarIdent i
+            e' <- convertExp e
+            u' <- convertExp u
+            let sks = projectSubK i
+                b = abstracting sks u'
+            pure (Let0 i e' b)
         CaseX e ps -> Case0 <$> convertExp e <*> traverse convertPat ps
         CallX e xs ->
             case e of
@@ -121,14 +125,19 @@ convertExp ex =
                     exists <- conExists n
                     if exists then convertCon n xs else convertCall e xs
                 _ -> convertCall e xs
-        LamX its e -> Lam0 <$> its' <*> e'' where
-            its' = traverse (\(i, t) -> (,) <$> ensure validateVarIdent i <*> convertTy t) its
-            e' = convertExp e
-            k a = Seq.findIndexR (\(i, _) -> i == ConcreteIdent a) its
-            e'' = abstract k <$> e'
-        CallCCX n ty e -> CallCC0 <$> ensure validateVarName n <*> convertTy ty <*> e'' where
-            e' = convertExp e
-            e'' = abstract1 n <$> e'
+        LamX its e -> do
+            its' <- traverse (\(i, t) -> (,) <$> ensure validateVarIdent i <*> convertTy t) its
+            e' <- convertExp e
+            let sks = projectSubKs (fst <$> its')
+                b = abstracting sks e'
+            pure (Lam0 its' b)
+        CallCCX i ty e -> do
+            validateVarIdent i
+            ty' <- convertTy ty
+            e' <- convertExp e
+            let sks = projectSubK i
+                b = abstracting sks e'
+            pure (CallCC0 i ty' b)
         ThrowX c e -> Throw0 <$> convertExp c <*> convertExp e
         TheX e ty -> The0 <$> convertExp e <*> convertTy ty
 

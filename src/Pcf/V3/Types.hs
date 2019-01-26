@@ -4,31 +4,14 @@ module Pcf.V3.Types where
 
 import           Bound                (Scope, abstract, abstract1, (>>>=))
 import           Control.Monad        (ap)
-import           Control.Monad.Except (MonadError (throwError))
 import           Data.Deriving        (deriveEq, deriveEq1, deriveShow, deriveShow1)
 import           Data.Map             (Map)
 import qualified Data.Map             as M
 import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as Seq
-import           Data.String          (IsString)
 import           Data.Text            (Text)
 import           GHC.Generics         (Generic)
-
-newtype Name = Name { unName :: Text } deriving (Generic, Eq, Ord, Show, IsString)
-
-data Ident = ConcreteIdent Name | WildIdent deriving (Generic, Eq, Show)
-
-nameFilter :: Ident -> Maybe Name
-nameFilter i =
-    case i of
-        ConcreteIdent n -> Just n
-        WildIdent       -> Nothing
-
-nameFilter2 :: (Ident, a) -> Maybe (Name, a)
-nameFilter2 (i, a) = (, a) <$> nameFilter i
-
-nameFilter3 :: (z, Ident, a) -> Maybe (z, Name, a)
-nameFilter3 (z, i, a) = (z, , a) <$> nameFilter i
+import           Pcf.V3.Names         (Ident, Name)
 
 data ConDef t = ConDef
     { conDefName  :: Name
@@ -66,11 +49,6 @@ data PathError p e = PathError
     , peError :: e
     } deriving (Generic, Eq, Show)
 
-throwPathError :: MonadError (PathError p e) m => m p -> e -> m z
-throwPathError mp e = do
-    p <- mp
-    throwError (PathError p e)
-
 -- ExpX and friends
 
 data TypeX =
@@ -92,7 +70,7 @@ data ExpX =
     | CaseX ExpX (Seq PatX)
     | CallX ExpX (Seq ExpX)
     | LamX (Seq (Ident, TypeX)) ExpX
-    | CallCCX Name TypeX ExpX
+    | CallCCX Ident TypeX ExpX
     | ThrowX ExpX ExpX
     | TheX ExpX TypeX
     deriving (Generic, Eq, Show)
@@ -110,19 +88,18 @@ data Type0 =
   deriving (Generic, Eq, Show)
 
 data Pat0 a =
-      VarPat0 Name (Scope () Exp0 a)
+      VarPat0 Ident (Scope Int Exp0 a)
     | ConPat0 Name (Seq Ident) (Scope Int Exp0 a)
-    | WildPat0 (Exp0 a)
     deriving (Generic, Functor, Foldable, Traversable)
 
 data Exp0 a =
       Var0 a
-    | Let0 Ident (Exp0 a) (Scope () Exp0 a)
+    | Let0 Ident (Exp0 a) (Scope Int Exp0 a)
     | Con0 Name (Seq (Exp0 a))
     | Case0 (Exp0 a) (Seq (Pat0 a))
     | Call0 (Exp0 a) (Seq (Exp0 a))
     | Lam0 (Seq (Ident, Type0)) (Scope Int Exp0 a)
-    | CallCC0 Name Type0 (Scope () Exp0 a)
+    | CallCC0 Ident Type0 (Scope Int Exp0 a)
     | Throw0 (Exp0 a) (Exp0 a)
     | The0 (Exp0 a) Type0
     deriving (Generic, Functor, Foldable, Traversable)
@@ -140,8 +117,6 @@ data Dir0 =
     | DirThrowFun0
     | DirThrowArg0
     | DirThe0
-    | DirPartialFun0
-    | DirPartialArg0 Int
     deriving (Eq, Show)
 
 type Path0 = Seq Dir0
@@ -160,16 +135,15 @@ instance Monad Exp0 where
             Case0 e ps    -> Case0 (e >>= f) (flip patBind0 f <$> ps)
             Call0 e xs    -> Call0 (e >>= f) ((>>= f) <$> xs)
             Lam0 nts b    -> Lam0 nts (b >>>= f)
-            CallCC0 n t b -> CallCC0 n t (b >>>= f)
+            CallCC0 i t b -> CallCC0 i t (b >>>= f)
             Throw0 c e    -> Throw0 (c >>= f) (e >>= f)
             The0 e t      -> The0 (e >>= f) t
 
 patBind0 :: Pat0 a -> (a -> Exp0 b) -> Pat0 b
 patBind0 p f =
     case p of
-        VarPat0 n b    -> VarPat0 n (b >>>= f)
+        VarPat0 i b    -> VarPat0 i (b >>>= f)
         ConPat0 n ns b -> ConPat0 n ns (b >>>= f)
-        WildPat0 e     -> WildPat0 (e >>= f)
 
 $(deriveEq ''Pat0)
 $(deriveShow ''Pat0)
