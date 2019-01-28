@@ -1,11 +1,14 @@
 module Pcf.Core.BoundCrazy where
 
 import Bound         (Scope (..), Var (..), abstract)
+import Control.Lens (Lens')
 import Control.Monad.Except (MonadError (throwError))
+import Control.Monad.Reader (MonadReader)
+import Data.Map (Map)
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 import GHC.Generics (Generic)
-import Pcf.Core.Util (findL, trabind)
+import Pcf.Core.Util (findL, insertAll, localMod, trabind)
 
 type Sub b n a = (b, n, a)
 type SubK b n = (b, n)
@@ -64,3 +67,18 @@ newtype Inst a = Inst { unSimpleInst :: Either Int a }
 
 instance Instantiable Inst where
     instantiating = instantiateE (Inst . Left)
+
+handle :: (Instantiable m , MonadReader x m, Traversable f, Monad f, Ord n) =>
+    Lens' x (Map n v) -> Seq (Sub Int n v) -> Scope Int f n -> (f n -> m a) -> m a
+handle l subs s f = do
+    let sks = subK <$> subs
+    fn <- instantiating sks s
+    localMod l (insertAll (subV <$> subs)) (f fn)
+
+handle' :: (Instantiable m , MonadReader x m, Traversable f, Monad f, Ord n, Monad g) =>
+    Lens' x (Map n v) -> Seq (Sub Int n v) -> Scope Int f n -> (f n -> m (g n)) -> m (Scope Int g n)
+handle' l subs s f = do
+    let sks = subK <$> subs
+    fn <- instantiating sks s
+    gn <- localMod l (insertAll (subV <$> subs)) (f fn)
+    pure (abstracting sks gn)

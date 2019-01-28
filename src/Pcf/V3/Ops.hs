@@ -76,8 +76,10 @@ runOps ops = runIdentity . runOpsT ops
 
 liftFuncT :: Monad m => r -> s -> (e -> OpsExc) -> (FuncT r s e m a) -> OpsT m (a, s)
 liftFuncT env st wrap act = do
-    mr <- lift (runFuncT act env st)
-    either (throwError . wrap) pure mr
+    (ea, s) <- lift (runFuncT act env st)
+    case ea of
+        Left e -> throwError (wrap e)
+        Right a -> pure (a, s)
 
 liftConvertT :: Monad m => DataDefs t -> ConvertT t m b -> OpsT m b
 liftConvertT dds = (fst <$>) . liftFuncT (ConvertEnv dds) () WrapConvertError . unConvertT

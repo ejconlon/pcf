@@ -55,8 +55,10 @@ runOpsT ops = runStateT (runExceptT (unOps ops))
 
 liftFuncT :: Monad m => r -> s -> (e -> OpsExc) -> (FuncT r s e m a) -> OpsT m (a, s)
 liftFuncT env st wrap act = do
-    mr <- lift (runFuncT act env st)
-    either (throwError . wrap) pure mr
+    (ea, s) <- lift (runFuncT act env st)
+    case ea of
+        Left e -> throwError (wrap e)
+        Right a -> pure (a, s)
 
 liftTypeT :: Monad m => (Map Text Ty) -> TypeT Text Text m b -> OpsT m b
 liftTypeT tyMap = (fst <$>) . liftFuncT (TypeEnv pure tyMap) () WrapTypeError
