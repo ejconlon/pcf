@@ -1,14 +1,14 @@
 module Pcf.Core.BoundCrazy where
 
-import Bound         (Scope (..), Var (..), abstract)
-import Control.Lens (Lens')
-import Control.Monad.Except (MonadError (throwError))
-import Control.Monad.Reader (MonadReader)
-import Data.Map (Map)
-import Data.Sequence (Seq)
-import qualified Data.Sequence as Seq
-import GHC.Generics (Generic)
-import Pcf.Core.Util (findL, insertAll, localMod, trabind)
+import           Bound                (Scope (..), Var (..), abstract)
+import           Control.Lens         (Lens')
+import           Control.Monad.Except (MonadError (throwError))
+import           Control.Monad.Reader (MonadReader)
+import           Data.Map             (Map)
+import           Data.Sequence        (Seq)
+import qualified Data.Sequence        as Seq
+import           GHC.Generics         (Generic)
+import           Pcf.Core.Util        (findL, insertAll, localMod, trabind)
 
 type Sub b n a = (b, n, a)
 type SubK b n = (b, n)

@@ -1,22 +1,22 @@
 module Pcf.V3.Phases.Infer where
 
-import Bound (Scope)
+import           Bound                 (Scope)
 import           Control.Lens          (modifying, view)
-import Control.Monad.Except (MonadError (throwError))
-import Control.Monad.Reader (MonadReader)
-import Control.Monad.State (MonadState)
-import Data.Foldable (traverse_)
+import           Control.Monad.Except  (MonadError (throwError))
+import           Control.Monad.Reader  (MonadReader)
+import           Control.Monad.State   (MonadState)
+import           Data.Foldable         (traverse_)
 import           Data.Generics.Product (field)
-import Data.Map (Map)
-import qualified Data.Map as M
-import Data.Sequence (Seq (..))
-import qualified Data.Sequence as Seq
-import GHC.Generics (Generic)
-import Pcf.Core.BoundCrazy (Instantiable (..), instantiateE')
-import Pcf.Core.Func
-import Pcf.Core.Util (modifyingM)
+import           Data.Map              (Map)
+import qualified Data.Map              as M
+import           Data.Sequence         (Seq (..))
+import qualified Data.Sequence         as Seq
+import           GHC.Generics          (Generic)
+import           Pcf.Core.BoundCrazy   (Instantiable (..), Sub, handle, instantiateE')
+import           Pcf.Core.Func
+import           Pcf.Core.Util         (modifyingM)
 import           Pcf.V3.Names
-import Pcf.V3.Types
+import           Pcf.V3.Types
 
 newtype U = U { unU :: Int } deriving (Generic, Show, Eq, Ord, Enum)
 
@@ -27,7 +27,7 @@ data InferType =
 
 data InferEnv = InferEnv
     { ieDataDefs :: DataDefs0
-    , ieTyMap :: Map Name InferType
+    , ieTyMap    :: Map Name InferType
     } deriving (Generic, Show, Eq)
 
 data InferError =
@@ -43,15 +43,18 @@ data Constraint =
     | CEq U U
     | CCont U U
     | CCon Style U Name (Seq U)
-    | CFun U (Seq U)
+    | CFun U (Seq U) U
     | CRet U U
     | CFree U Name
     deriving (Generic, Show, Eq)
 
 data InferState = InferState
     { isConstraints :: Seq Constraint
-    , isNext :: U
+    , isNext        :: U
     } deriving (Generic, Show, Eq)
+
+emptyInferState :: InferState
+emptyInferState = InferState Seq.empty (U 0)
 
 type InferC m = (Instantiable m, MonadReader InferEnv m, MonadState InferState m, MonadError InferError m)
 newtype InferT m a = InferT { unInferT :: FuncT InferEnv InferState InferError m a }
@@ -59,6 +62,9 @@ newtype InferT m a = InferT { unInferT :: FuncT InferEnv InferState InferError m
 
 instance Monad m => Instantiable (InferT m) where
     instantiating = instantiateE' InferUnboundVarError
+
+exploding :: (Instantiable m, MonadReader InferEnv m) => Seq (Sub Int Name InferType) -> Scope Int Exp0 Name -> (Exp0 Name -> m a) -> m a
+exploding = handle (field @"ieTyMap")
 
 inferProof :: Monad m => (forall n. InferC n => n a) -> InferT m a
 inferProof = id
@@ -72,7 +78,7 @@ addC = modifying (field @"isConstraints") . flip (:|>)
 addInferType :: MonadState InferState m => U -> InferType -> m ()
 addInferType u it =
     case it of
-        UType v -> addC (CEq u v)
+        UType v   -> addC (CEq u v)
         ExpType t -> addC (CTy u t)
 
 addPats :: MonadState InferState m => U -> U -> Seq (U, U) -> m ()
@@ -94,18 +100,11 @@ buildPat p = do
 buildPatAs :: InferC m => U -> Pat0 Name -> m U
 buildPatAs u p =
     case p of
-        VarPat0 i b -> do
-            let sks = projectSubK i
-            eb <- instantiating sks b
-            -- TODO draw and add to tymap
-            build eb
+        VarPat0 i b -> exploding (projectSub (i, UType u)) b build
         ConPat0 n is b -> do
             ivs <- traverse (const draw) is
             addC (CCon PatStyle u n ivs)
-            let sks = projectSubKs is
-            eb <- instantiating sks b
-            -- TODO add to tymap
-            build eb
+            exploding (projectSubs (Seq.zip is (UType <$> ivs))) b build
 
 build :: InferC m => Exp0 Name -> m U
 build e = do
@@ -119,11 +118,7 @@ buildAs u e = do
         Var0 a -> buildVarAs u a
         Let0 i el b -> do
             v <- build el
-            -- let nts = selectIdent i (UType v)
-            -- localMod (field @"ieTyMap") (insertAll nts) $ do
-            --     eb <- instantiateE (const (throwError (InferUnboundVarError 0))) i v b
-            --     buildAs u eb
-            undefined
+            exploding (projectSub (i, UType v)) b (buildAs u)
         Con0 n xs -> do
             xvs <- traverse build xs
             addC (CCon ExpStyle u n xvs)
@@ -134,30 +129,25 @@ buildAs u e = do
         Call0 el xs -> do
             v <- build el
             xvs <- traverse build xs
-            addC (CFun v xvs)
-            addC (CRet u v)
+            addC (CFun v xvs u)
         Lam0 its b -> do
-            -- ignore ty
+            -- not explicitly typed: ignore ty
             ivs <- traverse (const draw) its
-            addC (CFun u ivs)
-            -- let nis = 
-            -- localMod (field @"ieTyMap") (insertAll nts) $ do
-            --     eb <- inst (Seq.zip (fst <$> its) ivs) b
-            --     eb <- instantiateE (throwError . InferUnboundVarError) i v b
-            --     build eb
-            undefined
+            rv <- draw
+            addC (CFun u ivs rv)
+            exploding (projectSubs (Seq.zip (fst <$> its) (UType <$> ivs))) b (buildAs rv)
         CallCC0 i _ b -> do
-            -- ignore ty
+            -- TODO suspicious impl
+            -- not explicitly typed: ignore ty
             v <- draw
-            let sks = projectSubK i
-            eb <- instantiating sks b
-            addC (CCont v u)
-            buildAs u eb
+            addC (CCont u v)
+            exploding (projectSub (i, UType v)) b (buildAs u)
         Throw0 c e -> do
-            -- TODO HUH?
-            -- v <- build e
-            -- addC (CCont u v)
-            undefined
+            -- TODO suspicious impl
+            pure ()
+            -- v <- build c
+            -- w <- build e
+            -- addC (CEq u c)
         The0 et t -> do
             addC (CTy u t)
             buildAs u et

@@ -67,6 +67,9 @@ evalCommand input = do
     v <- quickOpsT (traceBigStepOps e0)
     outputStrLn "Value: "
     outputPretty v
+    d <- quickOpsT (inferDumpOps e0)
+    outputStrLn "Infer dump: "
+    outputPretty d
     pure ReplContinue
 
 additionalOptions :: ReplOptionCommands

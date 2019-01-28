@@ -103,7 +103,7 @@ validateVarIdent :: ConvertC t m => Ident -> m ()
 validateVarIdent i =
     case i of
         ConcreteIdent n -> validateVarName n
-        WildIdent -> pure ()
+        WildIdent       -> pure ()
 
 convertExp :: ConvertC t m => ExpX -> m (Exp0 Name)
 convertExp ex =

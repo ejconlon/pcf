@@ -57,7 +57,7 @@ liftFuncT :: Monad m => r -> s -> (e -> OpsExc) -> (FuncT r s e m a) -> OpsT m (
 liftFuncT env st wrap act = do
     (ea, s) <- lift (runFuncT act env st)
     case ea of
-        Left e -> throwError (wrap e)
+        Left e  -> throwError (wrap e)
         Right a -> pure (a, s)
 
 liftTypeT :: Monad m => (Map Text Ty) -> TypeT Text Text m b -> OpsT m b

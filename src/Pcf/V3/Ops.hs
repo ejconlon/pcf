@@ -24,11 +24,12 @@ import           Pcf.Core.Func
 import           Pcf.Core.SExp          (SExp)
 import           Pcf.Core.SExp.Parser   (Anno, readSExpAnno)
 import           Pcf.Core.Util          (modifyingM_)
+import           Pcf.V3.Names           (Name)
 import           Pcf.V3.Parser          (readExpX, readStmtX)
 import           Pcf.V3.Phases.Convert
 import           Pcf.V3.Phases.Eval
+import           Pcf.V3.Phases.Infer
 import           Pcf.V3.Phases.Type
-import           Pcf.V3.Names (Name)
 import           Pcf.V3.Types
 
 data OpsData = OpsData
@@ -53,6 +54,7 @@ data OpsExc =
     | WrapConvertError ConvertError
     | WrapTypeError FullTypeError
     | WrapEvalError EvalError
+    | WrapInferError InferError
     deriving (Generic, Eq, Show)
 
 type OpsC m = (MonadState OpsData m, MonadError OpsExc m)
@@ -78,7 +80,7 @@ liftFuncT :: Monad m => r -> s -> (e -> OpsExc) -> (FuncT r s e m a) -> OpsT m (
 liftFuncT env st wrap act = do
     (ea, s) <- lift (runFuncT act env st)
     case ea of
-        Left e -> throwError (wrap e)
+        Left e  -> throwError (wrap e)
         Right a -> pure (a, s)
 
 liftConvertT :: Monad m => DataDefs t -> ConvertT t m b -> OpsT m b
@@ -94,6 +96,9 @@ liftTypeT dds tyMap = (fst <$>) . liftFuncT (TypeEnv tyMap dds Seq.empty) () Wra
 
 liftEvalT :: Monad m => DataDefs t -> Map Name (Exp0 Name) -> EvalT t m b -> OpsT m b
 liftEvalT dds expMap = (fst <$>) . liftFuncT (EvalEnv dds) (EvalState KontTop0 Seq.empty (ExpTerm <$> expMap)) WrapEvalError . unEvalT
+
+liftInferT :: Monad m => DataDefs0 -> Map Name Type0 -> InferT m b -> OpsT m b
+liftInferT dds tyMap = (fst <$>) . liftFuncT (InferEnv dds (ExpType <$> tyMap)) emptyInferState WrapInferError . unInferT
 
 -- liftConvT :: Monad m => ConvT n n m b -> OpsT m b
 -- liftConvT = (fst <$>) . liftFuncT (ConvEnv pure) () WrapConvError
@@ -166,6 +171,12 @@ bigStepOps e = do
 
 freeVarsOps :: (Monad m, Ord a) => Exp0 a -> OpsT m (Set a)
 freeVarsOps = pure . S.fromList . toList
+
+inferDumpOps :: Monad m => Exp0 Name -> OpsT m InferState
+inferDumpOps e = do
+    dataDefs <- use (field @"dataDefs")
+    decls <- use (field @"decls")
+    liftInferT dataDefs decls (build e >> get)
 
 -- closConvOps :: (Monad m, Eq n) => Exp n n -> OpsT m (ExpC n n)
 -- closConvOps = liftConvT . closConv

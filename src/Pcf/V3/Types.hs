@@ -2,16 +2,16 @@
 
 module Pcf.V3.Types where
 
-import           Bound                (Scope, abstract, abstract1, (>>>=))
-import           Control.Monad        (ap)
-import           Data.Deriving        (deriveEq, deriveEq1, deriveShow, deriveShow1)
-import           Data.Map             (Map)
-import qualified Data.Map             as M
-import           Data.Sequence        (Seq)
-import qualified Data.Sequence        as Seq
-import           Data.Text            (Text)
-import           GHC.Generics         (Generic)
-import           Pcf.V3.Names         (Ident, Name)
+import           Bound         (Scope, abstract, abstract1, (>>>=))
+import           Control.Monad (ap)
+import           Data.Deriving (deriveEq, deriveEq1, deriveShow, deriveShow1)
+import           Data.Map      (Map)
+import qualified Data.Map      as M
+import           Data.Sequence (Seq)
+import qualified Data.Sequence as Seq
+import           Data.Text     (Text)
+import           GHC.Generics  (Generic)
+import           Pcf.V3.Names  (Ident, Name)
 
 data ConDef t = ConDef
     { conDefName  :: Name

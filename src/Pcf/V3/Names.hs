@@ -1,12 +1,12 @@
 module Pcf.V3.Names where
 
-import           Control.Applicative  (Alternative (empty))
-import           Data.Sequence        (Seq (..))
-import qualified Data.Sequence        as Seq
-import           Data.String          (IsString)
-import           Data.Text            (Text)
-import           GHC.Generics         (Generic)
-import           Pcf.Core.BoundCrazy  (Sub, SubK, SubV)
+import           Control.Applicative (Alternative (empty))
+import           Data.Sequence       (Seq (..))
+import qualified Data.Sequence       as Seq
+import           Data.String         (IsString)
+import           Data.Text           (Text)
+import           GHC.Generics        (Generic)
+import           Pcf.Core.BoundCrazy (Sub, SubK, SubV)
 
 newtype Name = Name { unName :: Text } deriving (Generic, Eq, Ord, Show, IsString)
 
@@ -18,7 +18,7 @@ foldIdent :: (Name -> a) -> a -> (Ident -> a)
 foldIdent f z i =
     case i of
         ConcreteIdent i -> f i
-        WildIdent -> z
+        WildIdent       -> z
 
 selectName :: Alternative t => Ident -> t Name
 selectName = foldIdent pure empty
@@ -49,7 +49,7 @@ projectSubKs = go 0 where
                 let c' = c + 1
                 in case x of
                     ConcreteIdent n -> (c, n) :<| go c' xs
-                    WildIdent -> go c' xs
+                    WildIdent       -> go c' xs
             Seq.Empty -> Seq.empty
 
 projectSub :: Alternative t => SubV Ident v -> t (Sub Int Name v)
@@ -63,5 +63,5 @@ projectSubs = go 0 where
                 let c' = c + 1
                 in case xi of
                     ConcreteIdent n -> (c, n, xv) :<| go c' xs
-                    WildIdent -> go c' xs
+                    WildIdent       -> go c' xs
             Seq.Empty -> Seq.empty
