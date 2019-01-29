@@ -97,8 +97,8 @@ liftTypeT dds tyMap = (fst <$>) . liftFuncT (TypeEnv tyMap dds Seq.empty) () Wra
 liftEvalT :: Monad m => DataDefs t -> Map Name (Exp0 Name) -> EvalT t m b -> OpsT m b
 liftEvalT dds expMap = (fst <$>) . liftFuncT (EvalEnv dds) (EvalState KontTop0 Seq.empty (ExpTerm <$> expMap)) WrapEvalError . unEvalT
 
-liftInferT :: Monad m => DataDefs0 -> Map Name Type0 -> InferT m b -> OpsT m b
-liftInferT dds tyMap = (fst <$>) . liftFuncT (InferEnv dds (ExpType <$> tyMap)) emptyInferState WrapInferError . unInferT
+liftInferT :: Monad m => InferT m b -> OpsT m b
+liftInferT = (fst <$>) . liftFuncT (InferEnv M.empty) emptyInferState WrapInferError . unInferT
 
 -- liftConvT :: Monad m => ConvT n n m b -> OpsT m b
 -- liftConvT = (fst <$>) . liftFuncT (ConvEnv pure) () WrapConvError
@@ -173,10 +173,7 @@ freeVarsOps :: (Monad m, Ord a) => Exp0 a -> OpsT m (Set a)
 freeVarsOps = pure . S.fromList . toList
 
 inferDumpOps :: Monad m => Exp0 Name -> OpsT m InferState
-inferDumpOps e = do
-    dataDefs <- use (field @"dataDefs")
-    decls <- use (field @"decls")
-    liftInferT dataDefs decls (build e >> get)
+inferDumpOps e = liftInferT (build e >> get)
 
 -- closConvOps :: (Monad m, Eq n) => Exp n n -> OpsT m (ExpC n n)
 -- closConvOps = liftConvT . closConv
