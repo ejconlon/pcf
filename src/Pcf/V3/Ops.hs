@@ -54,7 +54,8 @@ data OpsExc =
     | WrapConvertError ConvertError
     | WrapTypeError FullTypeError
     | WrapEvalError EvalError
-    | WrapInferError InferError
+    | WrapGenError GenError
+    | WrapSolveError SolveError
     deriving (Generic, Eq, Show)
 
 type OpsC m = (MonadState OpsData m, MonadError OpsExc m)
@@ -97,8 +98,11 @@ liftTypeT dds tyMap = (fst <$>) . liftFuncT (TypeEnv tyMap dds Seq.empty) () Wra
 liftEvalT :: Monad m => DataDefs t -> Map Name (Exp0 Name) -> EvalT t m b -> OpsT m b
 liftEvalT dds expMap = (fst <$>) . liftFuncT (EvalEnv dds) (EvalState KontTop0 Seq.empty (ExpTerm <$> expMap)) WrapEvalError . unEvalT
 
-liftInferT :: Monad m => InferT m b -> OpsT m b
-liftInferT = (fst <$>) . liftFuncT (InferEnv M.empty) emptyInferState WrapInferError . unInferT
+liftGenT :: Monad m => GenT m b -> OpsT m b
+liftGenT = (fst <$>) . liftFuncT (GenEnv M.empty) emptyGenState WrapGenError . unGenT
+
+liftSolveT :: Monad m => DataDefs0 -> Map Name Type0 -> Seq Konstraint -> Map U U -> SolveT m b -> OpsT m b
+liftSolveT dds tyMap ks eqs = (fst <$>) . liftFuncT (SolveEnv dds tyMap ks) (SolveState M.empty eqs) WrapSolveError . unSolveT
 
 -- liftConvT :: Monad m => ConvT n n m b -> OpsT m b
 -- liftConvT = (fst <$>) . liftFuncT (ConvEnv pure) () WrapConvError
@@ -172,8 +176,14 @@ bigStepOps e = do
 freeVarsOps :: (Monad m, Ord a) => Exp0 a -> OpsT m (Set a)
 freeVarsOps = pure . S.fromList . toList
 
-inferDumpOps :: Monad m => Exp0 Name -> OpsT m InferState
-inferDumpOps e = liftInferT (build e >> get)
+genDumpOps :: Monad m => Exp0 Name -> OpsT m (Seq Konstraint, Map U U)
+genDumpOps e = liftGenT (gen e)
+
+solveDumpOps :: Monad m => Seq Konstraint -> Map U U -> OpsT m SolveState
+solveDumpOps ks eqs = do
+    dds <- use (field @"dataDefs")
+    decls <- use (field @"decls")
+    liftSolveT dds decls ks eqs (solve >> get)
 
 -- closConvOps :: (Monad m, Eq n) => Exp n n -> OpsT m (ExpC n n)
 -- closConvOps = liftConvT . closConv

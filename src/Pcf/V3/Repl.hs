@@ -67,9 +67,13 @@ evalCommand input = do
     v <- quickOpsT (traceBigStepOps e0)
     outputStrLn "Value: "
     outputPretty v
-    d <- quickOpsT (inferDumpOps e0)
-    outputStrLn "Infer dump: "
-    outputPretty d
+    (ks, eqs) <- quickOpsT (genDumpOps e0)
+    outputStrLn "Gen dump: "
+    outputPretty ks
+    outputPretty eqs
+    sd <- quickOpsT (solveDumpOps ks eqs)
+    outputStrLn "Solve dump: "
+    outputPretty sd
     pure ReplContinue
 
 additionalOptions :: ReplOptionCommands
