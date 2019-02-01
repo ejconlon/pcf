@@ -1,16 +1,15 @@
 module Pcf.Core.UnionFind where
 
-import Control.Monad.State (State, get, put, evalState)
+import Control.Monad.State (State, evalState, get, put)
 import Data.Foldable (traverse_)
-import GHC.Generics (Generic)
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Set (Set)
 import qualified Data.Set as S
 
-newtype V = V { unV :: Int } deriving (Generic, Show, Eq, Ord, Enum)
+newtype V = V { unV :: Int } deriving (Show, Eq, Ord, Enum)
 
-data BiMap a = BiMap { fwdBM :: Map a V, bwdBM :: Map V (Set a), nextBM :: V }
+data BiMap a = BiMap { fwdBM :: Map a V, bwdBM :: Map V (Set a), nextBM :: V } deriving (Show, Eq)
 
 emptyBiMap :: BiMap a
 emptyBiMap = BiMap M.empty M.empty (V 0)
@@ -58,4 +57,4 @@ projectBM = do
     pure maa
 
 buildEqs :: (Foldable f, Ord a) => f (a, a) -> Map a a
-buildEqs faa = evalState (traverse_ (uncurry linkBM) faa >> projectBM) emptyBiMap
+buildEqs faa = evalState (traverse_ (uncurry linkBM) faa *> projectBM) emptyBiMap

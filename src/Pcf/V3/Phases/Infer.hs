@@ -6,22 +6,31 @@ import           Control.Monad         (unless)
 import           Control.Monad.Except  (MonadError (throwError))
 import           Control.Monad.Reader  (MonadReader)
 import           Control.Monad.State   (MonadState)
-import           Data.Foldable         (traverse_)
+import           Data.Foldable         (toList, traverse_)
 import           Data.Functor          (($>))
 import           Data.Generics.Product (field)
 import           Data.Map              (Map)
 import qualified Data.Map              as M
 import           Data.Maybe            (fromMaybe)
+import qualified Data.Set              as S
 import           Data.Sequence         (Seq (..))
 import qualified Data.Sequence         as Seq
 import           Data.Void             (Void)
 import           GHC.Generics          (Generic)
-import           Pcf.Core.BoundCrazy   (Instantiable (..), Sub, handle, instantiateE')
+import           Pcf.Core.BoundCrazy   (Instantiable (..), Sub, abstracting, handle, instantiateE')
 import           Pcf.Core.Func
+import           Pcf.Core.OrdNub       (ordNub)
 import           Pcf.Core.UnionFind    (buildEqs)
-import           Pcf.Core.Util         (modifyingM, modifyingM_)
+import           Pcf.Core.Util         (izip, modifyingM, modifyingM_)
 import           Pcf.V3.Names
 import           Pcf.V3.Types
+
+schematize :: TypeI Name -> TySchemaI Name
+schematize ti =
+    let ns = ordNub (toList ti)
+        is = ConcreteIdent <$> ns
+        sks = izip ns
+    in TySchemaI is (abstracting sks ti)
 
 newtype U = U { unU :: Int } deriving (Generic, Show, Eq, Ord, Enum)
 
@@ -136,28 +145,31 @@ projectKEq :: Konstraint -> (U, U)
 projectKEq (Konstraint u (KEq v)) = (u, v)
 projectKEq _ = error "should be filtered first"
 
-gen :: GenC m => Exp0 Name -> m (Seq Konstraint, Map U U)
+gen :: GenC m => Exp0 Name -> m (U, Seq Konstraint, Map U U)
 gen e = do
-    build e
+    u <- build e
     ks <- use (field @"gsKonstraints")
     let (eqKs, nonEqKs) = Seq.partition isKEq ks
         eqs = buildEqs (projectKEq <$> eqKs)
-    pure (nonEqKs, eqs)
+    pure (u, nonEqKs, eqs)
 
 data SolveEnv = SolveEnv
     { seDataDefs    :: DataDefs0
     , seTyMap       :: Map Name Type0
     , seKonstraints :: Seq Konstraint
+    , seEqs         :: Map U U
     } deriving (Generic, Eq, Show)
 
 data SolveState = SolveState
-    { ssSolution :: Map U Type0
-    , ssEqs :: Map U U
+    { ssSolution :: Map U (TypeI U)
     } deriving (Generic, Eq, Show)
+
+emptySolveState :: SolveState
+emptySolveState = SolveState M.empty
 
 data SolveError =
       SolveFreeVarError U Name
-    | SolveConflictingTypeError U Type0 Type0
+    | SolveConflictingTypeError U (TypeI U) (TypeI U)
     | SolveUnknownConError U Name
     | SolveConArityError U Name Int Int
     deriving (Generic, Eq, Show)
@@ -169,19 +181,19 @@ newtype SolveT m a = SolveT { unSolveT :: FuncT SolveEnv SolveState SolveError m
 solveProof :: Monad m => (forall n. SolveC n => n a) -> SolveT m a
 solveProof = id
 
-canonicalize :: MonadState SolveState m => U -> m U
+canonicalize :: MonadReader SolveEnv m => U -> m U
 canonicalize u = do
-    eqs <- use (field @"ssEqs")
+    eqs <- view (field @"seEqs")
     pure (fromMaybe u (M.lookup u eqs))
 
-addTySol :: SolveC m => U -> Type0 -> m ()
+addTySol :: SolveC m => U -> TypeI U -> m ()
 addTySol u ty0 = do
     modifyingM_ (field @"ssSolution") $ \m -> do
         case M.lookup u m of
             Just ty1 -> unless (ty0 == ty1) (throwError (SolveConflictingTypeError u ty0 ty1)) $> m
             Nothing -> pure (M.insert u ty0 m)
 
-findTySol :: MonadState SolveState m => U -> m (Maybe Type0)
+findTySol :: MonadState SolveState m => U -> m (Maybe (TypeI U))
 findTySol u = do
     sols <- use (field @"ssSolution")
     pure (M.lookup u sols)
@@ -200,16 +212,13 @@ handleC k@(Konstraint u0 rhs) = do
         KVar n -> do
             tyMap <- view (field @"seTyMap")
             case M.lookup n tyMap of
-                Just ty -> addTySol u ty
+                Just ty -> addTySol u (liftTyI ty)
                 Nothing -> throwError (SolveFreeVarError u n)
-        KEq v0 -> error "TODO remove eqs"
-        KTy ty -> addTySol u ty
+        KEq v0 -> error "no eqs should be present"
+        KTy ty -> addTySol u (liftTyI ty)
         KCont v0 -> do
             v <- canonicalize v0
-            ms <- findTySol v
-            case ms of
-                Just ty -> addTySol u (TyCont0 ty)
-                Nothing -> error "TODO fix cont"
+            addTySol u (TyContI (TyVarI v))
         KCon n vs0 -> do
             vs <- traverse canonicalize vs0
             mti <- findTyInfo n
@@ -218,19 +227,16 @@ handleC k@(Konstraint u0 rhs) = do
                     let xlen = Seq.length vs
                         alen = Seq.length ts
                     unless (xlen == alen) (throwError (SolveConArityError u n xlen alen))
-                    traverse_ (uncurry addTySol) (Seq.zip vs ts)
-                    addTySol u (TyCon0 tn)
+                    traverse_ (uncurry addTySol) (Seq.zip vs (liftTyI <$> ts))
+                    addTySol u (TyConI tn)
                 Nothing -> throwError (SolveUnknownConError u n)
         KFun vs0 r0 -> do
             vs <- traverse canonicalize vs0
             r <- canonicalize r0
-            mts <- traverse findTySol vs
-            mrt <- findTySol r
-            case (,) <$> sequence mts <*> mrt of
-                Just (vts, rt) -> addTySol u (TyFun0 vts rt)
-                Nothing -> error "TODO fix fun"
+            addTySol u (TyFunI (TyVarI <$> vs) (TyVarI r))
 
-solve :: SolveC m => m ()
+solve :: SolveC m => m (Map U (TypeI U))
 solve = do
     konstraints <- view (field @"seKonstraints")
-    traverse_ handleC (Seq.reverse konstraints)
+    traverse_ handleC konstraints
+    use (field @"ssSolution")

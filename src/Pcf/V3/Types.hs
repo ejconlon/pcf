@@ -173,3 +173,40 @@ $(deriveShow1 ''Exp0)
 type ConDef0 = ConDef Type0
 type Stmt0 = Stmt Type0 (Exp0 Name)
 type DataDefs0 = DataDefs Type0
+
+-- TypeI
+
+data TypeI a =
+    TyVarI a
+  | TyConI Name
+  | TyFunI (Seq (TypeI a)) (TypeI a)
+  | TyContI (TypeI a)
+  deriving (Generic, Functor, Foldable, Traversable)
+
+instance Applicative TypeI where
+  pure = TyVarI
+  (<*>) = ap
+
+instance Monad TypeI where
+  return = pure
+  m >>= f =
+      case m of
+          TyVarI a -> f a
+          TyConI n -> TyConI n
+          TyFunI xs r -> TyFunI ((>>= f) <$> xs) (r >>= f)
+          TyContI u -> TyContI (u >>= f)
+
+$(deriveEq ''TypeI)
+$(deriveShow ''TypeI)
+$(deriveEq1 ''TypeI)
+$(deriveShow1 ''TypeI)
+
+liftTyI :: Type0 -> TypeI a
+liftTyI t =
+  case t of
+      TyCon0 n -> TyConI n
+      TyFun0 ts r -> TyFunI (liftTyI <$> ts) (liftTyI r)
+      TyCont0 u -> TyContI (liftTyI u)
+
+data TySchemaI a = TySchemaI (Seq Ident) (Scope Int TypeI a)
+    deriving (Generic, Eq, Show, Functor, Foldable, Traversable)

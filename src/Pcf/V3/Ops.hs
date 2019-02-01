@@ -21,6 +21,8 @@ import           Data.Text              (Text)
 import           Data.Void              (absurd)
 import           GHC.Generics           (Generic)
 import           Pcf.Core.Func
+import           Pcf.Core.Expand        (ExpandError, expand)
+import           Pcf.Core.OrdNub        (ordNub)
 import           Pcf.Core.SExp          (SExp)
 import           Pcf.Core.SExp.Parser   (Anno, readSExpAnno)
 import           Pcf.Core.Util          (modifyingM_)
@@ -56,6 +58,7 @@ data OpsExc =
     | WrapEvalError EvalError
     | WrapGenError GenError
     | WrapSolveError SolveError
+    | WrapExpandError (ExpandError U)
     deriving (Generic, Eq, Show)
 
 type OpsC m = (MonadState OpsData m, MonadError OpsExc m)
@@ -102,7 +105,7 @@ liftGenT :: Monad m => GenT m b -> OpsT m b
 liftGenT = (fst <$>) . liftFuncT (GenEnv M.empty) emptyGenState WrapGenError . unGenT
 
 liftSolveT :: Monad m => DataDefs0 -> Map Name Type0 -> Seq Konstraint -> Map U U -> SolveT m b -> OpsT m b
-liftSolveT dds tyMap ks eqs = (fst <$>) . liftFuncT (SolveEnv dds tyMap ks) (SolveState M.empty eqs) WrapSolveError . unSolveT
+liftSolveT dds tyMap ks eqs = (fst <$>) . liftFuncT (SolveEnv dds tyMap ks eqs) emptySolveState WrapSolveError . unSolveT
 
 -- liftConvT :: Monad m => ConvT n n m b -> OpsT m b
 -- liftConvT = (fst <$>) . liftFuncT (ConvEnv pure) () WrapConvError
@@ -173,17 +176,20 @@ bigStepOps e = do
     dataDefs <- use (field @"dataDefs")
     liftEvalT dataDefs defns (bigStep0 e)
 
-freeVarsOps :: (Monad m, Ord a) => Exp0 a -> OpsT m (Set a)
-freeVarsOps = pure . S.fromList . toList
+freeVarsOps :: (Monad m, Ord a) => Exp0 a -> OpsT m (Seq a)
+freeVarsOps = pure . ordNub . toList
 
-genDumpOps :: Monad m => Exp0 Name -> OpsT m (Seq Konstraint, Map U U)
+genDumpOps :: Monad m => Exp0 Name -> OpsT m (U, Seq Konstraint, Map U U)
 genDumpOps e = liftGenT (gen e)
 
-solveDumpOps :: Monad m => Seq Konstraint -> Map U U -> OpsT m SolveState
+solveDumpOps :: Monad m => Seq Konstraint -> Map U U -> OpsT m (Map U (TypeI U))
 solveDumpOps ks eqs = do
     dds <- use (field @"dataDefs")
     decls <- use (field @"decls")
-    liftSolveT dds decls ks eqs (solve >> get)
+    liftSolveT dds decls ks eqs solve
+
+expandOps :: Monad m => Map U (TypeI U) -> U -> OpsT m (TypeI U)
+expandOps m u = either (throwError . WrapExpandError) pure (expand m u)
 
 -- closConvOps :: (Monad m, Eq n) => Exp n n -> OpsT m (ExpC n n)
 -- closConvOps = liftConvT . closConv

@@ -14,10 +14,15 @@ import qualified Data.Sequence        as Seq
 trabind :: (Traversable f, Monad f, Applicative m) => f a -> (a -> m (f b)) -> m (f b)
 trabind fa k = join <$> traverse k fa
 
+izip :: Seq a -> Seq (Int, a)
+izip = go 0 where
+    go i (a :<| as) = (i, a) :<| go (i + 1) as
+    go _ _ = Seq.empty
+
 izipWithM_ :: Applicative m => (Int -> a -> b -> m ()) -> Seq a -> Seq b -> m ()
 izipWithM_ f = go 0 where
-    go i (a :<| as') (b :<| bs') = f i a b *> go (i + 1) as' bs'
-    go _ _ _                     = pure ()
+    go i (a :<| as) (b :<| bs) = f i a b *> go (i + 1) as bs
+    go _ _ _                   = pure ()
 
 localMod :: MonadReader x m => Lens' x y -> (y -> y) -> m z -> m z
 localMod lens mod = local (over lens mod)
