@@ -9,12 +9,12 @@ import qualified Data.Set as S
 
 newtype V = V { unV :: Int } deriving (Show, Eq, Ord, Enum)
 
-data BiMap a = BiMap { fwdBM :: Map a V, bwdBM :: Map V (Set a), nextBM :: V } deriving (Show, Eq)
+data BiMap a x = BiMap { fwdBM :: Map a x, bwdBM :: Map x (Set a), nextBM :: x } deriving (Show, Eq)
 
-emptyBiMap :: BiMap a
-emptyBiMap = BiMap M.empty M.empty (V 0)
+initBiMap :: x -> BiMap a x
+initBiMap = BiMap M.empty M.empty
 
-lookupBM :: Ord a => a -> State (BiMap a) V
+lookupBM :: (Ord a, Ord x, Enum x) => a -> State (BiMap a x) x
 lookupBM a = do
     BiMap fwd bwd next <- get
     case M.lookup a fwd of
@@ -24,7 +24,7 @@ lookupBM a = do
             put bm'
             pure next
 
-reinsertBM :: Ord a => V -> V -> State (BiMap a) ()
+reinsertBM :: (Ord a, Ord x) => x -> x -> State (BiMap a x) ()
 reinsertBM fromV toV = do
     BiMap fwd bwd next <- get
     case M.lookup fromV bwd of
@@ -34,7 +34,7 @@ reinsertBM fromV toV = do
                 bm' = BiMap fwd' bwd next
             put bm'
 
-linkBM :: Ord a => a -> a -> State (BiMap a) ()
+linkBM :: (Ord a, Ord x, Enum x) => a -> a -> State (BiMap a x) ()
 linkBM a b = do
     av <- lookupBM a
     bv <- lookupBM b
@@ -50,11 +50,11 @@ foldAct (maa, mxa) a x =
         Just b -> (M.insert a b maa, mxa)
         Nothing -> (maa, M.insert x a mxa)
 
-projectBM :: Ord a => State (BiMap a) (Map a a)
+projectBM :: (Ord a, Ord x) => State (BiMap a x) (Map a a)
 projectBM = do
     BiMap fwd _ _ <- get
     let (maa, _) = M.foldlWithKey' foldAct (M.empty, M.empty) fwd
     pure maa
 
 buildEqs :: (Foldable f, Ord a) => f (a, a) -> Map a a
-buildEqs faa = evalState (traverse_ (uncurry linkBM) faa *> projectBM) emptyBiMap
+buildEqs faa = evalState (traverse_ (uncurry linkBM) faa *> projectBM) (initBiMap (V 0))

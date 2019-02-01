@@ -25,14 +25,14 @@ import           Pcf.Core.Util         (izip, modifyingM, modifyingM_)
 import           Pcf.V3.Names
 import           Pcf.V3.Types
 
+newtype U = U { unU :: Int } deriving (Generic, Show, Eq, Ord, Enum)
+
 schematize :: TypeI Name -> TySchemaI Name
 schematize ti =
     let ns = ordNub (toList ti)
         is = ConcreteIdent <$> ns
         sks = izip ns
     in TySchemaI is (abstracting sks ti)
-
-newtype U = U { unU :: Int } deriving (Generic, Show, Eq, Ord, Enum)
 
 data GenEnv = GenEnv
     { geTyMap :: Map Name U

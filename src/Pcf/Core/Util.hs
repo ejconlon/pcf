@@ -63,6 +63,7 @@ findL f s =
             in case f x of
                 Nothing -> findL f xs
                 _       -> y
+        _ -> Nothing
 
 lookupR :: Eq a => a -> Seq (a, b) -> Maybe b
 lookupR a abs = do
