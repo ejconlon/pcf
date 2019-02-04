@@ -1,7 +1,9 @@
-module Pcf.Core.UnionFind where
+module Pcf.Core.UnionFind (UnionFindC, UnionFindState, emptyUnionFindState, lookupUF, linkUF) where
 
-import Control.Monad.State (State, evalState, get, put)
+import Control.Monad.Identity (Identity (..))
+import Control.Monad.State (MonadState, State, evalState, get, put)
 import Data.Foldable (traverse_)
+import Data.List (foldl')
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Set (Set)
@@ -9,52 +11,72 @@ import qualified Data.Set as S
 
 newtype V = V { unV :: Int } deriving (Show, Eq, Ord, Enum)
 
-data BiMap a x = BiMap { fwdBM :: Map a x, bwdBM :: Map x (Set a), nextBM :: x } deriving (Show, Eq)
+type UnionFindC a m = MonadState (UnionFindState a) m
+type UnionFindT a b = State (UnionFindState a) b
 
-initBiMap :: x -> BiMap a x
-initBiMap = BiMap M.empty M.empty
+ufProof :: (forall n. UnionFindC a n => n b) -> UnionFindT a b
+ufProof = id
 
-lookupBM :: (Ord a, Ord x, Enum x) => a -> State (BiMap a x) x
-lookupBM a = do
-    BiMap fwd bwd next <- get
+data UnionFindState a = UnionFindState
+    { ufsFwd :: Map a V
+    , ufsBwd :: Map V (a, Set a)
+    , ufsNext :: V
+    } deriving (Show, Eq)
+
+emptyUnionFindState :: UnionFindState a
+emptyUnionFindState = UnionFindState M.empty M.empty (V 0)
+
+lookupUF :: (UnionFindC a m, Ord a) => a -> m a
+lookupUF a = do
+    UnionFindState fwd bwd _ <- get
+    case M.lookup a fwd of
+        Just v -> pure (fst (bwd M.! v))
+        Nothing -> pure a
+
+forwardUF :: (UnionFindC a m, Ord a) => a -> m V
+forwardUF a = do
+    UnionFindState fwd bwd next <- get
     case M.lookup a fwd of
         Just v -> pure v
         Nothing -> do
-            let bm' = BiMap (M.insert a next fwd) (M.insert next (S.singleton a) bwd) (succ next)
-            put bm'
+            put (UnionFindState (M.insert a next fwd) (M.insert next (a, S.singleton a) bwd) (succ next))
             pure next
 
-reinsertBM :: (Ord a, Ord x) => x -> x -> State (BiMap a x) ()
-reinsertBM fromV toV = do
-    BiMap fwd bwd next <- get
+reinsertUF :: (UnionFindC a m, Ord a) => a -> V -> V -> m ()
+reinsertUF fromA fromV toV = do
+    UnionFindState fwd bwd next <- get
     case M.lookup fromV bwd of
         Nothing -> pure ()
-        Just as -> do
-            let fwd' = S.foldl' (\m a -> M.insert a toV m) fwd as
-                bm' = BiMap fwd' bwd next
+        Just (_, fromAs) -> do
+            let fwd' = S.foldl' (\m a -> M.insert a toV m) fwd fromAs
+                cleanBwd = M.delete fromV bwd
+                (toA, toAs) = cleanBwd M.! toV
+                toAs' = S.union toAs fromAs
+                bwd' = M.insert toV (toA, toAs') cleanBwd
+                bm' = UnionFindState fwd' bwd' next
             put bm'
 
-linkBM :: (Ord a, Ord x, Enum x) => a -> a -> State (BiMap a x) ()
-linkBM a b = do
-    av <- lookupBM a
-    bv <- lookupBM b
+linkUF :: (UnionFindC a m, Ord a) => a -> a -> m ()
+linkUF a b = do
+    av <- forwardUF a
+    bv <- forwardUF b
     if av == bv
         then pure ()
         else if a > b
-            then reinsertBM av bv
-            else reinsertBM bv av
+            then reinsertUF a av bv
+            else reinsertUF b bv av
 
-foldAct :: (Ord a, Ord x) => (Map a a, Map x a) -> a -> x -> (Map a a, Map x a)
-foldAct (maa, mxa) a x =
-    case M.lookup x mxa of
-        Just b -> (M.insert a b maa, mxa)
-        Nothing -> (maa, M.insert x a mxa)
+-- foldActUF :: Ord a => (Map a a, Map V a) -> (a, V) -> (Map a a, Map V a)
+-- foldActUF (maa, mxa) (a, x) =
+--     case M.lookup x mxa of
+--         Just b -> (M.insert a b maa, mxa)
+--         Nothing -> (maa, M.insert x a mxa)
 
-projectBM :: (Ord a, Ord x) => State (BiMap a x) (Map a a)
-projectBM = do
-    BiMap fwd _ _ <- get
-    let (maa, _) = M.foldlWithKey' foldAct (M.empty, M.empty) fwd
-    pure maa
+-- projectUF :: (UnionFindC a m, Ord a) => m (Map a a)
+-- projectUF = do
+--     UnionFindState fwd _ _ <- get
+--     let (maa, _) = foldl' foldActUF (M.empty, M.empty) (M.toList fwd)
+--     pure maa
 
-buildEqs :: (Foldable f, Ord a) => f (a, a) -> Map a a
-buildEqs faa = evalState (traverse_ (uncurry linkBM) faa *> projectBM) (initBiMap (V 0))
+-- buildEqs :: (Foldable f, Ord a) => f (a, a) -> Map a a
+-- buildEqs faa = evalState (traverse_ (uncurry linkUF) faa *> projectUF) emptyUnionFindState

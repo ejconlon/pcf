@@ -67,14 +67,14 @@ evalCommand input = do
     v <- quickOpsT (traceBigStepOps e0)
     outputStrLn "Value: "
     outputPretty v
-    (u, ks, eqs) <- quickOpsT (genDumpOps e0)
+    (u, ks) <- quickOpsT (genDumpOps e0)
     outputStrLn "Gen dump: "
     outputPretty u
     outputPretty ks
-    outputPretty eqs
-    sd <- quickOpsT (solveDumpOps ks eqs)
-    outputStrLn "Solve dump: "
+    (sd, ufs) <- quickOpsT (integrateDumpOps ks)
+    outputStrLn "Integrate dump: "
     outputPretty sd
+    outputPretty ufs
     ei <- quickOpsT (expandOps sd u)
     outputStrLn "Expanded: "
     outputPretty ei

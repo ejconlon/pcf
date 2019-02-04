@@ -5,7 +5,7 @@ module Pcf.Core.Util where
 import           Control.Lens         (Lens', assign, over, use)
 import           Control.Monad        (join, void)
 import           Control.Monad.Reader (MonadReader, local)
-import           Control.Monad.State  (MonadState)
+import           Control.Monad.State  (MonadState, State, runState)
 import           Data.Map             (Map)
 import qualified Data.Map             as M
 import           Data.Sequence        (Seq (..))
@@ -73,3 +73,10 @@ lookupR a abs = do
 
 ensure :: Monad m => (a -> m ()) -> a -> m a
 ensure f a = f a >> pure a
+
+zooming :: MonadState s m => Lens' s x -> State x a -> m a
+zooming l s = do
+    x <- use l
+    let (a, x') = runState s x
+    assign l x'
+    pure a

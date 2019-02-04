@@ -25,6 +25,7 @@ import           Pcf.Core.Expand        (ExpandError, expand)
 import           Pcf.Core.OrdNub        (ordNub)
 import           Pcf.Core.SExp          (SExp)
 import           Pcf.Core.SExp.Parser   (Anno, readSExpAnno)
+import           Pcf.Core.UnionFind     (UnionFindState)
 import           Pcf.Core.Util          (modifyingM_)
 import           Pcf.V3.Names           (Name)
 import           Pcf.V3.Parser          (readExpX, readStmtX)
@@ -57,7 +58,7 @@ data OpsExc =
     | WrapTypeError FullTypeError
     | WrapEvalError EvalError
     | WrapGenError GenError
-    | WrapSolveError SolveError
+    | WrapIntegrateError IntegrateError
     | WrapExpandError (ExpandError U)
     deriving (Generic, Eq, Show)
 
@@ -104,8 +105,8 @@ liftEvalT dds expMap = (fst <$>) . liftFuncT (EvalEnv dds) (EvalState KontTop0 S
 liftGenT :: Monad m => GenT m b -> OpsT m b
 liftGenT = (fst <$>) . liftFuncT (GenEnv M.empty) emptyGenState WrapGenError . unGenT
 
-liftSolveT :: Monad m => DataDefs0 -> Map Name Type0 -> Seq Konstraint -> Map U U -> SolveT m b -> OpsT m b
-liftSolveT dds tyMap ks eqs = (fst <$>) . liftFuncT (SolveEnv dds tyMap ks eqs) emptySolveState WrapSolveError . unSolveT
+liftIntegrateT :: Monad m => DataDefs0 -> Map Name Type0  -> IntegrateT m b -> OpsT m b
+liftIntegrateT dds tyMap = (fst <$>) . liftFuncT (IntegrateEnv dds tyMap) emptyIntegrateState WrapIntegrateError . unIntegrateT
 
 -- liftConvT :: Monad m => ConvT n n m b -> OpsT m b
 -- liftConvT = (fst <$>) . liftFuncT (ConvEnv pure) () WrapConvError
@@ -179,14 +180,14 @@ bigStepOps e = do
 freeVarsOps :: (Monad m, Ord a) => Exp0 a -> OpsT m (Seq a)
 freeVarsOps = pure . ordNub . toList
 
-genDumpOps :: Monad m => Exp0 Name -> OpsT m (U, Seq Konstraint, Map U U)
+genDumpOps :: Monad m => Exp0 Name -> OpsT m (U, Seq Konstraint)
 genDumpOps e = liftGenT (gen e)
 
-solveDumpOps :: Monad m => Seq Konstraint -> Map U U -> OpsT m (Map U (TypeI U))
-solveDumpOps ks eqs = do
+integrateDumpOps :: Monad m => Seq Konstraint -> OpsT m (Map U (TypeI U), UnionFindState U)
+integrateDumpOps ks = do
     dds <- use (field @"dataDefs")
     decls <- use (field @"decls")
-    liftSolveT dds decls ks eqs solve
+    liftIntegrateT dds decls (integrate ks)
 
 expandOps :: Monad m => Map U (TypeI U) -> U -> OpsT m (TypeI U)
 expandOps m u = either (throwError . WrapExpandError) pure (expand m u)

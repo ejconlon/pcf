@@ -1,7 +1,7 @@
 module Pcf.V3.Phases.Infer where
 
 import           Bound                 (Scope)
-import           Control.Lens          (modifying, use, view)
+import           Control.Lens          (assign, modifying, use, view)
 import           Control.Monad         (unless)
 import           Control.Monad.Except  (MonadError (throwError))
 import           Control.Monad.Reader  (MonadReader)
@@ -20,8 +20,8 @@ import           GHC.Generics          (Generic)
 import           Pcf.Core.BoundCrazy   (Instantiable (..), Sub, abstracting, handle, instantiateE')
 import           Pcf.Core.Func
 import           Pcf.Core.OrdNub       (ordNub)
-import           Pcf.Core.UnionFind    (buildEqs)
-import           Pcf.Core.Util         (izip, modifyingM, modifyingM_)
+import           Pcf.Core.UnionFind
+import           Pcf.Core.Util         (izip, modifyingM, modifyingM_, zooming)
 import           Pcf.V3.Names
 import           Pcf.V3.Types
 
@@ -137,84 +137,77 @@ buildAs u e = do
             addK u (KTy t)
             buildAs u et
 
-isKEq :: Konstraint -> Bool
-isKEq (Konstraint _ (KEq _)) = True
-isKEq _ = False
-
-projectKEq :: Konstraint -> (U, U)
-projectKEq (Konstraint u (KEq v)) = (u, v)
-projectKEq _ = error "should be filtered first"
-
-gen :: GenC m => Exp0 Name -> m (U, Seq Konstraint, Map U U)
+gen :: GenC m => Exp0 Name -> m (U, Seq Konstraint)
 gen e = do
     u <- build e
     ks <- use (field @"gsKonstraints")
-    let (eqKs, nonEqKs) = Seq.partition isKEq ks
-        eqs = buildEqs (projectKEq <$> eqKs)
-    pure (u, nonEqKs, eqs)
+    pure (u, ks)
 
-data SolveEnv = SolveEnv
-    { seDataDefs    :: DataDefs0
-    , seTyMap       :: Map Name Type0
-    , seKonstraints :: Seq Konstraint
-    , seEqs         :: Map U U
+data IntegrateEnv = IntegrateEnv
+    { ieDataDefs    :: DataDefs0
+    , ieTyMap       :: Map Name Type0
     } deriving (Generic, Eq, Show)
 
-data SolveState = SolveState
-    { ssSolution :: Map U (TypeI U)
+data IntegrateState = IntegrateState
+    { isSolution :: Map U (TypeI U)
+    , isUnionFind :: UnionFindState U
     } deriving (Generic, Eq, Show)
 
-emptySolveState :: SolveState
-emptySolveState = SolveState M.empty
+emptyIntegrateState :: IntegrateState
+emptyIntegrateState = IntegrateState M.empty emptyUnionFindState
 
-data SolveError =
-      SolveFreeVarError U Name
-    | SolveConflictingTypeError U (TypeI U) (TypeI U)
-    | SolveUnknownConError U Name
-    | SolveConArityError U Name Int Int
+data IntegrateError =
+      IntegrateFreeVarError U Name
+    | IntegrateUnknownConError U Name
+    | IntegrateConArityError U Name Int Int
     deriving (Generic, Eq, Show)
 
-type SolveC m = (MonadReader SolveEnv m, MonadState SolveState m, MonadError SolveError m)
-newtype SolveT m a = SolveT { unSolveT :: FuncT SolveEnv SolveState SolveError m a }
-    deriving (Functor, Applicative, Monad, MonadReader SolveEnv, MonadState SolveState, MonadError SolveError)
+type IntegrateC m = (MonadReader IntegrateEnv m, MonadState IntegrateState m, MonadError IntegrateError m)
+newtype IntegrateT m a = IntegrateT { unIntegrateT :: FuncT IntegrateEnv IntegrateState IntegrateError m a }
+    deriving (Functor, Applicative, Monad, MonadReader IntegrateEnv, MonadState IntegrateState, MonadError IntegrateError)
 
-solveProof :: Monad m => (forall n. SolveC n => n a) -> SolveT m a
-solveProof = id
+integrateProof :: Monad m => (forall n. IntegrateC n => n a) -> IntegrateT m a
+integrateProof = id
 
-canonicalize :: MonadReader SolveEnv m => U -> m U
-canonicalize u = do
-    eqs <- view (field @"seEqs")
-    pure (fromMaybe u (M.lookup u eqs))
+canonicalize :: MonadState IntegrateState m => U -> m U
+canonicalize = zooming (field @"isUnionFind") . lookupUF
 
-addTySol :: SolveC m => U -> TypeI U -> m ()
-addTySol u ty0 = do
-    modifyingM_ (field @"ssSolution") $ \m -> do
-        case M.lookup u m of
-            Just ty1 -> unless (ty0 == ty1) (throwError (SolveConflictingTypeError u ty0 ty1)) $> m
-            Nothing -> pure (M.insert u ty0 m)
+addTyEq :: MonadState IntegrateState m => U -> U -> m ()
+addTyEq u v = zooming (field @"isUnionFind") (linkUF u v)
 
-findTySol :: MonadState SolveState m => U -> m (Maybe (TypeI U))
-findTySol u = do
-    sols <- use (field @"ssSolution")
-    pure (M.lookup u sols)
+unify :: IntegrateC m => TypeI U -> TypeI U -> m (TypeI U)
+unify ty0 ty1 = error "TODO impl unify"
+    -- case (ty0, ty1) of
+    --     (TyVarI v0, _) -> pure ty1'
+    --     (ty0', TyVarI v1) -> pure ty0'
+    --     (TyConI n0, TyConI n1) -> if n0 == n1 then pure ty1 else error "TODO mismatch exc"
 
-findTyInfo :: MonadReader SolveEnv m => Name -> m (Maybe (Name, Seq Type0))
+addTySol :: IntegrateC m => U -> TypeI U -> m ()
+addTySol u ty0 =
+    modifyingM_ (field @"isSolution") $ \m -> do
+        ty' <- maybe (pure ty0) (unify ty0) (M.lookup u m)
+        pure (M.insert u ty' m)
+
+findTyInfo :: MonadReader IntegrateEnv m => Name -> m (Maybe (Name, Seq Type0))
 findTyInfo n = do
-    dds <- view (field @"seDataDefs")
+    dds <- view (field @"ieDataDefs")
     case M.lookup n (conNameToTyNameAndDef dds) of
         Just (n, cd) -> pure (Just (n, conDefTypes cd))
         Nothing -> pure Nothing
 
-handleC :: SolveC m => Konstraint -> m ()
-handleC k@(Konstraint u0 rhs) = do
+-- TODO shouldn't have to canonicalize, that will be done by unify
+handleC :: IntegrateC m => Konstraint -> m ()
+handleC (Konstraint u0 rhs) = do
     u <- canonicalize u0
     case rhs of
         KVar n -> do
-            tyMap <- view (field @"seTyMap")
+            tyMap <- view (field @"ieTyMap")
             case M.lookup n tyMap of
                 Just ty -> addTySol u (liftTyI ty)
-                Nothing -> throwError (SolveFreeVarError u n)
-        KEq v0 -> error "no eqs should be present"
+                Nothing -> throwError (IntegrateFreeVarError u n)
+        KEq v0 -> do
+            v <- canonicalize v0
+            addTyEq u v
         KTy ty -> addTySol u (liftTyI ty)
         KCont v0 -> do
             v <- canonicalize v0
@@ -226,17 +219,18 @@ handleC k@(Konstraint u0 rhs) = do
                 Just (tn, ts) -> do
                     let xlen = Seq.length vs
                         alen = Seq.length ts
-                    unless (xlen == alen) (throwError (SolveConArityError u n xlen alen))
+                    unless (xlen == alen) (throwError (IntegrateConArityError u n xlen alen))
                     traverse_ (uncurry addTySol) (Seq.zip vs (liftTyI <$> ts))
                     addTySol u (TyConI tn)
-                Nothing -> throwError (SolveUnknownConError u n)
+                Nothing -> throwError (IntegrateUnknownConError u n)
         KFun vs0 r0 -> do
             vs <- traverse canonicalize vs0
             r <- canonicalize r0
             addTySol u (TyFunI (TyVarI <$> vs) (TyVarI r))
 
-solve :: SolveC m => m (Map U (TypeI U))
-solve = do
-    konstraints <- view (field @"seKonstraints")
-    traverse_ handleC konstraints
-    use (field @"ssSolution")
+integrate :: IntegrateC m => Seq Konstraint -> m (Map U (TypeI U), UnionFindState U)
+integrate ks = do
+    traverse_ handleC ks
+    sol <- use (field @"isSolution")
+    ufs <- use (field @"isUnionFind")
+    pure (sol, ufs)
